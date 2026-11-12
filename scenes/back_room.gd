@@ -150,6 +150,12 @@ func _tank_contents(state: GameState, tank: Tank, roles: Dictionary) -> Label:
 	return label
 
 
+## Show breeding tank `index` (0-based), or HOLDING_TAB, in the big view.
+func show_tank(index: int) -> void:
+	_selected_tank = index
+	refresh()
+
+
 func _select_tank(index: int) -> void:
 	_selected_tank = index
 	refresh()
