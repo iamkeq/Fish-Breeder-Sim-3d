@@ -1,0 +1,127 @@
+class_name Genetics
+extends RefCounted
+## Simple, readable inheritance: each trait is copied from the mother or the
+## father (50/50). Two twists, both from data:
+##   - mutations: a small chance of a value from the trait's "mutations" list
+##     (or its "rare" list if there is none), whatever the parents are;
+##   - recipes: some parent pairs can produce a new value, e.g. red x yellow
+##     -> orange, at the species' "recipe_chance".
+## All randomness comes from the passed-in RNG so results are reproducible.
+
+## Recipe chains deeper than this are treated as a data mistake (a loop).
+const MAX_RECIPE_DEPTH := 8
+
+
+static func is_rare(species: Dictionary, trait_name: String, value: String) -> bool:
+	var t: Dictionary = species["traits"].get(trait_name, {})
+	return value in t.get("rare", [])
+
+
+static func mutation_pool(species: Dictionary, trait_name: String) -> Array:
+	var t: Dictionary = species["traits"].get(trait_name, {})
+	return t.get("mutations", t.get("rare", []))
+
+
+static func is_mutation(species: Dictionary, trait_name: String, value: String) -> bool:
+	return value in mutation_pool(species, trait_name)
+
+
+## Which mutation a baby gets, once it has mutated. Uses the trait's
+## "mutation_weights" if given (higher = more likely), otherwise all equal.
+static func pick_mutation(species: Dictionary, trait_name: String, rng: RandomNumberGenerator) -> String:
+	var pool := mutation_pool(species, trait_name)
+	var weights: Dictionary = species["traits"][trait_name].get("mutation_weights", {})
+	if weights.is_empty():
+		return pool[rng.randi_range(0, pool.size() - 1)]
+	var total := 0.0
+	for v in pool:
+		total += float(weights.get(v, 1.0))
+	var roll := rng.randf() * total
+	for v in pool:
+		roll -= float(weights.get(v, 1.0))
+		if roll < 0.0:
+			return v
+	return pool[-1]
+
+
+## The value a recipe makes from these two parent values (either order), or "".
+static func recipe_child(species: Dictionary, trait_name: String, a: String, b: String) -> String:
+	for recipe in species.get("recipes", {}).get(trait_name, []):
+		var p: Array = recipe["parents"]
+		if (p[0] == a and p[1] == b) or (p[0] == b and p[1] == a):
+			return recipe["child"]
+	return ""
+
+
+## How many recipe steps it takes to make `child`: 0 if no recipe makes it,
+## otherwise 1 + the larger generation of its two parents (red x yellow ->
+## orange is 1, orange x yellow -> gold is 2). If several recipes make it, the
+## shortest counts. `_depth` stops bad data (a recipe loop) from recursing forever.
+static func recipe_generation(species: Dictionary, trait_name: String, child: String, _depth: int = 0) -> int:
+	if _depth > MAX_RECIPE_DEPTH:
+		return 0
+	var best := 0
+	for recipe in species.get("recipes", {}).get(trait_name, []):
+		if recipe["child"] != child:
+			continue
+		var g := pair_generation(species, trait_name, recipe["parents"][0], recipe["parents"][1], _depth + 1)
+		best = g if best == 0 else mini(best, g)
+	return best
+
+
+## The generation of the recipe that mixes parents `a` and `b`.
+static func pair_generation(species: Dictionary, trait_name: String, a: String, b: String, _depth: int = 0) -> int:
+	return 1 + maxi(recipe_generation(species, trait_name, a, _depth), recipe_generation(species, trait_name, b, _depth))
+
+
+static func inherit_trait(species: Dictionary, trait_name: String, mother_value: String,
+		father_value: String, rng: RandomNumberGenerator) -> String:
+	var pool := mutation_pool(species, trait_name)
+	if not pool.is_empty() and rng.randf() < float(species["mutation_chance"]):
+		return pick_mutation(species, trait_name, rng)
+	var child := recipe_child(species, trait_name, mother_value, father_value)
+	if child != "" and rng.randf() < float(species.get("recipe_chance", 0.0)):
+		return child
+	return mother_value if rng.randf() < 0.5 else father_value
+
+
+static func make_offspring(mother: Fish, father: Fish, species: Dictionary,
+		rng: RandomNumberGenerator) -> Fish:
+	var fry := Fish.new()
+	fry.species_id = species["id"]
+	fry.sex = Fish.MALE if rng.randf() < 0.5 else Fish.FEMALE
+	for trait_name in species["traits"]:
+		fry.traits[trait_name] = inherit_trait(species, trait_name,
+			mother.get_trait(trait_name), father.get_trait(trait_name), rng)
+	fry.parent_stars = (mother.stars + father.stars) / 2.0
+	fry.age_days = 0
+	return fry
+
+
+static func brood_size(species: Dictionary, rng: RandomNumberGenerator) -> int:
+	var range_: Array = species["brood_size"]
+	return rng.randi_range(int(range_[0]), int(range_[1]))
+
+
+static func breed(mother: Fish, father: Fish, species: Dictionary,
+		rng: RandomNumberGenerator) -> Array[Fish]:
+	var brood: Array[Fish] = []
+	for i in brood_size(species, rng):
+		brood.append(make_offspring(mother, father, species, rng))
+	return brood
+
+
+## A random adult fish, e.g. for the breeding-stock market.
+static func random_fish(species: Dictionary, stars: int, rare_chance: float,
+		rng: RandomNumberGenerator) -> Fish:
+	var f := Fish.new()
+	f.species_id = species["id"]
+	f.sex = Fish.MALE if rng.randf() < 0.5 else Fish.FEMALE
+	for trait_name in species["traits"]:
+		var t: Dictionary = species["traits"][trait_name]
+		var rare: Array = t.get("rare", [])
+		var pool: Array = rare if (not rare.is_empty() and rng.randf() < rare_chance) else t["common"]
+		f.traits[trait_name] = pool[rng.randi_range(0, pool.size() - 1)]
+	f.stars = stars
+	f.age_days = int(species["days_to_adult"])
+	return f

@@ -1,0 +1,423 @@
+extends ColorRect
+## Aquascaping editor for the display tank. Pick a spot (substrate or one of six
+## slots, by button or by clicking the tank), then place an item from stock.
+## Removing puts the item back in stock. Pauses the shop clock while open.
+
+const UI := preload("res://scenes/ui/ui_kit.gd")
+const TankViewScene := preload("res://scenes/tank_view.tscn")
+
+const SLOT_NAMES := ["Back left", "Back right", "Mid left", "Mid right", "Front left", "Front right"]
+const IDEAL_HEIGHT := {"back": "tall", "mid": "medium", "front": "short"}
+const BREAKDOWN_NAMES := {
+	"substrate": "Substrate", "coverage": "Coverage", "hardscape_and_plants": "Rock+plant mix",
+	"variety": "Variety", "layering": "Layering", "theme": "Theme",
+}
+
+var location: String = Fish.DISPLAY
+## -1 = substrate, 0..5 = placement slot.
+var _selected: int = 0
+
+var _tank_view: Control
+var _looks: Label
+var _value: Label
+var _breakdown: Label
+var _tips: Label
+var _spot_buttons: Array[Button] = []
+var _spot_group := ButtonGroup.new()
+var _selected_label: Label
+var _remove_button: Button
+var _items: VBoxContainer
+var _status: Label
+var _title: Label
+## The order's request, shown when editing an order tank.
+var _request: Label
+var _fish_box: VBoxContainer
+
+
+func _ready() -> void:
+	visible = false
+	color = Color(0.15, 0.1, 0.08, 0.45)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_build()
+	Game.changed.connect(func(): if visible: _refresh())
+
+
+## Opens the editor on a tank: Fish.DISPLAY, or an order tank (Fish.order_location(id)).
+func open(p_location: String = Fish.DISPLAY) -> void:
+	if visible or Game.state.tank_at(p_location) == null:
+		return
+	location = p_location
+	_tank_view.set_location(location)
+	var order := _order()
+	_title.text = "Aquascaping · Display tank" if order.is_empty() 		else "Order tank for %s" % order.get("customer", "a customer")
+	_request.visible = not order.is_empty()
+	if not order.is_empty():
+		_request.text = "They asked for: " + RequestGenerator.describe(order, Game.db.species[order["species_id"]])
+	visible = true
+	_status.text = "Pick a spot, then place something from your stock."
+	Game.push_pause()
+	_select(_first_empty_spot())
+
+
+func close() -> void:
+	if not visible:
+		return
+	visible = false
+	Game.pop_pause()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if visible and event.is_action_pressed("ui_cancel"):
+		close()
+		get_viewport().set_input_as_handled()
+
+
+# --- Layout ------------------------------------------------------------------
+
+func _build() -> void:
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(1180, 640)
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	panel.add_child(box)
+
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 18)
+	_title = Label.new()
+	_title.text = "Aquascaping · Display tank"
+	_title.add_theme_font_size_override("font_size", 24)
+	header.add_child(_title)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(spacer)
+	_looks = _big_label()
+	_value = _big_label()
+	header.add_child(_looks)
+	header.add_child(_value)
+	var close_button := Button.new()
+	close_button.text = "Done"
+	close_button.pressed.connect(close)
+	header.add_child(close_button)
+	box.add_child(header)
+	_request = Label.new()
+	_request.add_theme_font_size_override("font_size", 15)
+	_request.modulate = Color(0.3, 0.45, 0.4)
+	_request.visible = false
+	box.add_child(_request)
+
+	var body := HBoxContainer.new()
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 16)
+	box.add_child(body)
+
+	# Left: live preview, score breakdown, tips.
+	var left := VBoxContainer.new()
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.add_theme_constant_override("separation", 6)
+	_tank_view = TankViewScene.instantiate()
+	_tank_view.location = location
+	_tank_view.show_slot_markers = true
+	_tank_view.custom_minimum_size = Vector2(540, 340)
+	_tank_view.slot_clicked.connect(_select)
+	left.add_child(_tank_view)
+	_breakdown = _small_label()
+	_breakdown.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_breakdown.custom_minimum_size = Vector2(520, 0)
+	left.add_child(_breakdown)
+	_tips = _small_label()
+	_tips.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_tips.custom_minimum_size = Vector2(520, 0)
+	_tips.modulate = Color(0.3, 0.45, 0.4)
+	left.add_child(_tips)
+	body.add_child(left)
+
+	# Middle: the spots.
+	var middle := VBoxContainer.new()
+	middle.custom_minimum_size = Vector2(250, 0)
+	middle.add_theme_constant_override("separation", 6)
+	middle.add_child(_section_label("Spots"))
+	var substrate_button := _spot_button(-1)
+	substrate_button.custom_minimum_size = Vector2(0, 46)
+	middle.add_child(substrate_button)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	for slot in SLOT_NAMES.size():
+		var b := _spot_button(slot)
+		b.custom_minimum_size = Vector2(120, 52)
+		grid.add_child(b)
+	middle.add_child(grid)
+	_selected_label = _small_label()
+	_selected_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_selected_label.custom_minimum_size = Vector2(240, 0)
+	middle.add_child(_selected_label)
+	_remove_button = Button.new()
+	_remove_button.text = "Remove (back to stock)"
+	_remove_button.pressed.connect(_on_remove)
+	middle.add_child(_remove_button)
+	middle.add_child(_section_label("Fish"))
+	_fish_box = VBoxContainer.new()
+	_fish_box.add_theme_constant_override("separation", 4)
+	middle.add_child(_fish_box)
+	body.add_child(middle)
+
+	# Right: what you can place.
+	var right := VBoxContainer.new()
+	right.custom_minimum_size = Vector2(320, 0)
+	right.add_theme_constant_override("separation", 6)
+	right.add_child(_section_label("Your stock"))
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_items = VBoxContainer.new()
+	_items.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_items.add_theme_constant_override("separation", 6)
+	scroll.add_child(_items)
+	right.add_child(scroll)
+	body.add_child(right)
+
+	_status = _small_label()
+	box.add_child(_status)
+
+
+func _spot_button(spot: int) -> Button:
+	var b := Button.new()
+	b.toggle_mode = true
+	b.button_group = _spot_group
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 13)
+	b.set_meta("spot", spot)
+	b.pressed.connect(_select.bind(spot))
+	_spot_buttons.append(b)
+	return b
+
+
+# --- State -------------------------------------------------------------------
+
+func _tank() -> Tank:
+	return Game.state.tank_at(location)
+
+
+func _select(spot: int) -> void:
+	_selected = spot
+	_refresh()
+
+
+func _first_empty_spot() -> int:
+	var t := _tank()
+	if t.substrate == "":
+		return -1
+	for slot in t.slot_count():
+		if t.is_slot_empty(slot):
+			return slot
+	return 0
+
+
+func _refresh() -> void:
+	var t := _tank()
+	if t == null:  # sold while open (shouldn't happen, but be safe)
+		close()
+		return
+	var state := Game.state
+	var weights: Dictionary = Game.db.economy["aesthetics"]
+	_looks.text = "Looks %d/100" % state.tank_aesthetics(t)
+	var order := _order()
+	if order.is_empty():
+		_value.text = "Worth $%d" % state.tank_price(t, false)
+	else:
+		var p := state.preview_delivery(state.order_index_by_id(order["id"]), true)
+		_value.text = "Payout $%d" % p["payout"]
+		_value.tooltip_text = "Tank $%d + bonus $%d (match %d%%, fish %d%%, looks %d%%)" % [
+			p["tank_value"], p["bonus"], roundi(p["match"] * 100), roundi(p["quality"] * 100), roundi(p["looks"] * 100)]
+		_value.mouse_filter = Control.MOUSE_FILTER_PASS
+	_refresh_fish(t)
+	var parts := Aesthetics.breakdown(t, Game.db.items, weights)
+	var bits := PackedStringArray()
+	for key in BREAKDOWN_NAMES:
+		bits.append("%s %d/%d" % [BREAKDOWN_NAMES[key], roundi(parts[key]), int(weights[key])])
+	_breakdown.text = "   ".join(bits)
+	var tips := Aesthetics.tips(t, Game.db.items, weights)
+	_tips.text = "Looks perfect!" if tips.is_empty() else "Tips: " + "  ".join(tips)
+
+	for b in _spot_buttons:
+		var spot: int = b.get_meta("spot")
+		var content: String = t.substrate if spot == -1 else t.slots[spot]
+		var spot_name: String = "Substrate" if spot == -1 else SLOT_NAMES[spot]
+		b.text = "%s\n%s" % [spot_name, Game.db.items[content]["name"] if content != "" else "(empty)"]
+		b.button_pressed = spot == _selected
+	_tank_view.highlight_slot = _selected
+	_tank_view.queue_redraw()
+
+	var current: String = t.substrate if _selected == -1 else t.slots[_selected]
+	if _selected == -1:
+		_selected_label.text = "Substrate covers the bottom. Every tank looks better with some."
+	else:
+		var row: String = t.row_of(_selected)
+		_selected_label.text = "%s: %s items fit best here." % [SLOT_NAMES[_selected], IDEAL_HEIGHT[row].capitalize()]
+	_remove_button.disabled = current == ""
+	_refresh_items(t)
+
+
+func _refresh_items(t: Tank) -> void:
+	for child in _items.get_children():
+		child.queue_free()
+	var state := Game.state
+	var categories := ["substrate"] if _selected == -1 else DataDB.PLACEABLE_CATEGORIES
+	var ids := []
+	for category in categories:
+		for id in Game.db.items_in_category(category):
+			if state.inventory.count(id) > 0:
+				ids.append(id)
+	if ids.is_empty():
+		var none := _small_label()
+		none.text = "Nothing for this spot in stock.\nBuy some in the Market (top bar)."
+		_items.add_child(none)
+		return
+	var ideal := ""
+	if _selected >= 0:
+		ideal = IDEAL_HEIGHT[t.row_of(_selected)]
+	for id in ids:
+		_items.add_child(_item_row(id, ideal))
+
+
+func _item_row(item_id: String, ideal_height: String) -> Control:
+	var item: Dictionary = Game.db.items[item_id]
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var swatch := UI.item_icon(item, Vector2(48, 40))
+	row.add_child(swatch)
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info.add_theme_constant_override("separation", 0)
+	var name := Label.new()
+	name.text = "%s  ×%d" % [item["name"], Game.state.inventory.count(item_id)]
+	# Long names and tag lists shrink with "…" instead of widening the editor.
+	name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	name.custom_minimum_size.x = 60
+	info.add_child(name)
+	var details := PackedStringArray()
+	if item.has("height"):
+		var fit := ""
+		if ideal_height != "":
+			fit = "  ✓ good fit" if item["height"] == ideal_height else ""
+		details.append(item["height"] + fit)
+	if not item["tags"].is_empty():
+		details.append(", ".join(item["tags"]))
+	var sub := _small_label()
+	sub.text = " · ".join(details)
+	sub.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	sub.custom_minimum_size.x = 60
+	sub.tooltip_text = sub.text
+	sub.mouse_filter = Control.MOUSE_FILTER_PASS
+	sub.modulate = Color(1, 1, 1, 0.75)
+	info.add_child(sub)
+	row.add_child(info)
+	var place := UI.small_button("Place")
+	place.pressed.connect(_on_place.bind(item_id))
+	row.add_child(place)
+	return row
+
+
+func _on_place(item_id: String) -> void:
+	var ok := Game.set_substrate(location, item_id) if _selected == -1 \
+		else Game.place_item(location, _selected, item_id)
+	if ok:
+		_status.text = "Placed %s." % Game.db.items[item_id]["name"]
+
+
+func _on_remove() -> void:
+	var ok := Game.take_substrate(location) if _selected == -1 else Game.take_item(location, _selected)
+	if ok:
+		_status.text = "Put it back in stock."
+
+
+# --- Helpers -----------------------------------------------------------------
+
+func _big_label() -> Label:
+	var l := Label.new()
+	l.add_theme_font_size_override("font_size", 18)
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return l
+
+
+func _small_label() -> Label:
+	var l := Label.new()
+	l.add_theme_font_size_override("font_size", 13)
+	return l
+
+
+func _section_label(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", 18)
+	return l
+
+
+
+## Sort key for where a fish is coming from: holding, breeding tanks 1..N, then the rest.
+func _source_rank(loc: String) -> int:
+	if loc == Fish.HOLDING:
+		return 0
+	if Fish.is_breeding(loc):
+		return 1 + Fish.breeding_index(loc)
+	return 100
+
+
+## The order this editor is working on ({} for the display tank).
+func _order() -> Dictionary:
+	var i := Game.state.order_index_by_id(Fish.order_id(location))
+	return Game.state.orders[i] if i >= 0 else {}
+
+
+## Fish in this tank (with a button to send each back to holding) and a menu
+## to add adults from holding, the display tank or a breeding tank.
+func _refresh_fish(t: Tank) -> void:
+	for child in _fish_box.get_children():
+		child.queue_free()
+	var state := Game.state
+	for f in state.tank_fish(t):
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		var name := Label.new()
+		name.text = "%s %s%s %s" % [UI.sex_symbol(f), f.nickname if f.nickname != "" else UI.traits_text(f),
+			" ♥" if f.favorite else "", "★".repeat(f.stars)]
+		name.add_theme_font_size_override("font_size", 13)
+		name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(name)
+		var out := UI.small_button("Remove", "Back to the holding tanks.")
+		out.pressed.connect(func(): Game.move_fish(f.id, Fish.HOLDING))
+		row.add_child(out)
+		_fish_box.add_child(row)
+	var add := MenuButton.new()
+	add.text = "Add fish ▾  (%d/%d)" % [t.fish_ids.size(), t.capacity]
+	add.flat = false
+	add.focus_mode = Control.FOCUS_NONE
+	UI._compact(add)
+	var popup := add.get_popup()
+	var candidates := []
+	for f in state.inventory.fish_list():
+		if f.location != location and state.is_adult(f) and not Fish.is_order(f.location):
+			candidates.append(f)
+	# Holding tank first, then each breeding tank in order, then the display tank.
+	candidates.sort_custom(func(a: Fish, b: Fish) -> bool:
+		var ka := _source_rank(a.location)
+		var kb := _source_rank(b.location)
+		return ka < kb if ka != kb else a.id < b.id)
+	for f in candidates:
+		var index := popup.item_count
+		popup.add_item("%s %s%s %s  (%s)" % [UI.sex_symbol(f), f.nickname if f.nickname != "" else UI.traits_text(f),
+			" ♥" if f.favorite else "", "★".repeat(f.stars),
+			UI.location_name(f.location, state).to_lower()], index)
+		popup.set_item_metadata(index, f.id)
+		var blocker := state.move_blocker(f.id, location)
+		popup.set_item_disabled(index, blocker != "")
+		popup.set_item_tooltip(index, blocker)
+	add.disabled = candidates.is_empty() or not t.has_room_for_fish()
+	add.tooltip_text = "No adult fish to add." if candidates.is_empty() else ("The tank is full." if not t.has_room_for_fish() else "")
+	popup.id_pressed.connect(func(id: int): Game.move_fish(popup.get_item_metadata(popup.get_item_index(id)), location))
+	_fish_box.add_child(add)

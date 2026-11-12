@@ -1,0 +1,139 @@
+class_name Fish
+extends RefCounted
+## A single fish. Plain data plus small helpers; no scene dependencies.
+
+const HOLDING := "holding"
+## The first breeding tank. Further ones are "breeding2", "breeding3", ...
+## (see breeding_location()).
+const BREEDING := "breeding"
+const DISPLAY := "display"
+
+
+## Location name of breeding tank `index` (0-based): "breeding", "breeding2", ...
+static func breeding_location(index: int) -> String:
+	return BREEDING if index == 0 else "%s%d" % [BREEDING, index + 1]
+
+
+## Which breeding tank a location is (0-based), or -1 if it isn't one.
+static func breeding_index(location: String) -> int:
+	if location == BREEDING:
+		return 0
+	var suffix := location.trim_prefix(BREEDING)
+	if suffix != location and suffix.is_valid_int() and int(suffix) >= 2:
+		return int(suffix) - 1
+	return -1
+
+
+static func is_breeding(location: String) -> bool:
+	return breeding_index(location) >= 0
+
+
+## Location of the order tank for customer order `order_id`: "order1", "order2", ...
+static func order_location(order_id: int) -> String:
+	return "order%d" % order_id
+
+
+## Which order a location's tank belongs to, or -1 if it isn't an order tank.
+static func order_id(location: String) -> int:
+	var suffix := location.trim_prefix("order")
+	if suffix != location and suffix.is_valid_int():
+		return int(suffix)
+	return -1
+
+
+static func is_order(location: String) -> bool:
+	return order_id(location) >= 0
+
+const MALE := "male"
+const FEMALE := "female"
+
+var id: int = 0
+var species_id: String = ""
+## Named strain this fish was bought as ("" for home-bred fish).
+var strain_id: String = ""
+## What you paid for this fish (0 for fish you bred, or were given).
+var paid: int = 0
+var sex: String = FEMALE
+var traits: Dictionary = {}
+## 1–5 once adult. 0 while still a fry: quality is revealed when it grows up.
+var stars: int = 0
+## Average star rating of the parents, used to roll stars at adulthood.
+var parent_stars: float = 0.0
+var age_days: int = 0
+## Becomes false after a night without food. Fry fed every night roll better stars.
+var fed_every_night: bool = true
+var location: String = HOLDING
+## A name the player gave it ("" = none). Up to GameState.MAX_NAME_LENGTH characters.
+var nickname: String = ""
+## How true-breeding this fish's line is, 0-100. Set at birth, never changes.
+## Hidden until the fish is scanned in the Lab. See Purity.
+var purity: int = 50
+## True once the fish has been scanned in the Lab (purity is then shown).
+var scanned: bool = false
+## A keeper: never sold or handed to a customer, but still breeds and displays.
+var favorite: bool = false
+## Fish show ribbons won: [{"place": 1-3, "show": show name, "day": int}].
+var ribbons: Array = []
+
+
+func is_adult(species: Dictionary) -> bool:
+	return age_days >= int(species["days_to_adult"])
+
+
+## Trait value by name. "sex" is treated as a trait so requests can ask for it.
+func get_trait(trait_name: String) -> String:
+	if trait_name == "sex":
+		return sex
+	return traits.get(trait_name, "")
+
+
+func rare_trait_count(species: Dictionary) -> int:
+	var count := 0
+	for trait_name in traits:
+		if Genetics.is_rare(species, trait_name, traits[trait_name]):
+			count += 1
+	return count
+
+
+func to_dict() -> Dictionary:
+	return {
+		"id": id,
+		"species_id": species_id,
+		"strain_id": strain_id,
+		"paid": paid,
+		"sex": sex,
+		"traits": traits.duplicate(),
+		"stars": stars,
+		"parent_stars": parent_stars,
+		"age_days": age_days,
+		"fed_every_night": fed_every_night,
+		"location": location,
+		"nickname": nickname,
+		"favorite": favorite,
+		"purity": purity,
+		"scanned": scanned,
+		"ribbons": ribbons.duplicate(true),
+	}
+
+
+## `default_purity` is for saves from before purity existed (economy.purity.baseline).
+static func from_dict(d: Dictionary, default_purity: int = 50) -> Fish:
+	var f := Fish.new()
+	f.id = int(d.get("id", 0))
+	f.species_id = d.get("species_id", "")
+	f.strain_id = d.get("strain_id", "")
+	f.paid = int(d.get("paid", 0))
+	f.sex = d.get("sex", FEMALE)
+	f.traits = d.get("traits", {}).duplicate()
+	f.stars = int(d.get("stars", 0))
+	f.parent_stars = float(d.get("parent_stars", 0.0))
+	f.age_days = int(d.get("age_days", 0))
+	f.fed_every_night = bool(d.get("fed_every_night", true))
+	f.location = d.get("location", HOLDING)
+	f.nickname = str(d.get("nickname", ""))
+	f.favorite = bool(d.get("favorite", false))
+	f.purity = int(d.get("purity", default_purity))
+	f.scanned = bool(d.get("scanned", false))
+	for r in d.get("ribbons", []):
+		f.ribbons.append({"place": int(r.get("place", 3)), "show": str(r.get("show", "")), "day": int(r.get("day", 0))})
+	return f

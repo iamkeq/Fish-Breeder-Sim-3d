@@ -1,0 +1,503 @@
+extends Control
+## Shop floor: retail shelf, the display tank (with its fish and controls),
+## and the counter where customers arrive and orders are delivered.
+
+## The player wants to open the aquascaping editor for the display tank.
+signal edit_tank_requested
+## The player wants to build an order in the Orders room.
+signal orders_room_requested
+
+const UI := preload("res://scenes/ui/ui_kit.gd")
+const StaffScreen := preload("res://scenes/ui/staff.gd")
+const TEXT_WIDTH := 262.0
+
+@onready var _items: VBoxContainer = %Items
+@onready var _tank_info: Label = %TankInfo
+@onready var _tank_actions: HBoxContainer = %TankActions
+@onready var _display_fish: HBoxContainer = %DisplayFish
+@onready var _counter: VBoxContainer = %Counter
+
+## Last thing that happened at the counter ("Sold ... for $8").
+var _counter_news := ""
+## The gallery wall at the foot of the shelf panel: pinned portraits (hidden when none).
+var _wall: VBoxContainer
+var _wall_grid: GridContainer
+## The Staff button and small avatar chips at the very foot of the shelf panel.
+var _staff_row: HBoxContainer
+
+
+func _ready() -> void:
+	_build_wall()
+	_build_staff_row()
+	Game.changed.connect(refresh)
+	Game.customer_changed.connect(_refresh_counter)
+	refresh()
+
+
+func refresh() -> void:
+	_refresh_shelf()
+	_refresh_tank()
+	_refresh_counter()
+	_refresh_wall()
+	_refresh_staff_row()
+
+
+# --- Staff button ------------------------------------------------------------
+
+## Sits at the foot of the shelf panel, under the gallery wall, so it never
+## crowds the top bar or the tank.
+func _build_staff_row() -> void:
+	_staff_row = HBoxContainer.new()
+	_staff_row.add_theme_constant_override("separation", 4)
+	$Columns/ShelfPanel/Shelf.add_child(_staff_row)
+
+
+func _refresh_staff_row() -> void:
+	var state := Game.state
+	_clear(_staff_row)
+	var button := UI.small_button("Staff", "Hire helpers who feed, decorate and restock overnight.")
+	if state.staff_unlocked():
+		button.pressed.connect(func(): Game.staff_requested.emit())
+	else:
+		button.disabled = true
+		button.tooltip_text = "Reach '%s' to hire staff" % state.unlock_level_name("staff")
+	_staff_row.add_child(button)
+	for m in state.staff:
+		var chip := StaffScreen.avatar(m, 26.0)
+		chip.tooltip_text = "%s: %s" % [m["name"], state.staff_task(m["task"]).get("name", m["task"])]
+		chip.mouse_filter = Control.MOUSE_FILTER_STOP
+		_staff_row.add_child(chip)
+
+
+# --- Gallery wall ------------------------------------------------------------
+
+## The wall sits under the shelf list, in the shelf panel's own spare room, so
+## it never covers the tank, the counter or any buttons.
+func _build_wall() -> void:
+	_wall = VBoxContainer.new()
+	_wall.add_theme_constant_override("separation", 4)
+	_wall.visible = false
+	var title := _label("On the wall")
+	title.add_theme_font_size_override("font_size", 14)
+	title.modulate = Color(1, 1, 1, 0.7)
+	_wall.add_child(title)
+	_wall_grid = GridContainer.new()
+	_wall_grid.columns = 2
+	_wall_grid.add_theme_constant_override("h_separation", 6)
+	_wall_grid.add_theme_constant_override("v_separation", 6)
+	_wall.add_child(_wall_grid)
+	$Columns/ShelfPanel/Shelf.add_child(_wall)
+
+
+func _refresh_wall() -> void:
+	var state := Game.state
+	_clear(_wall_grid)
+	var pinned: Array = state.pinned_entries().slice(0, state.pin_slots())
+	_wall.visible = not pinned.is_empty()
+	for entry in pinned:
+		var frame := UI.portrait(state, entry, Vector2(80, 50), 0.75, 5)
+		frame.tooltip_text = "%s\nOpen the gallery" % entry["title"]
+		frame.mouse_filter = Control.MOUSE_FILTER_STOP
+		frame.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		frame.gui_input.connect(func(event: InputEvent):
+			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+				Game.gallery_requested.emit())
+		_wall_grid.add_child(frame)
+
+
+# --- Shelf -------------------------------------------------------------------
+
+func _refresh_shelf() -> void:
+	_clear(_items)
+	var stock := Game.state.inventory.stock()
+	var ids := stock.keys()
+	ids.sort_custom(func(a, b): return Game.db.items[a]["name"] < Game.db.items[b]["name"])
+	if ids.is_empty():
+		_items.add_child(_label("The shelf is empty."))
+	for id in ids:
+		var item: Dictionary = Game.db.items[id]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var swatch := UI.item_icon(item, Vector2(34, 28))
+		var name := _label("%s ×%d" % [item["name"], stock[id]])
+		name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var price := _label("$%d" % Pricing.item_price(item))
+		price.modulate = Color(1, 1, 1, 0.7)
+		row.add_child(swatch)
+		row.add_child(name)
+		row.add_child(price)
+		_items.add_child(row)
+
+
+# --- Display tank ------------------------------------------------------------
+
+func _refresh_tank() -> void:
+	var state := Game.state
+	var tank := state.display_tank
+	_clear(_tank_actions)
+	_clear(_display_fish)
+	if tank == null:
+		_tank_info.text = "The display stand is empty."
+		var tanks := Game.db.items_in_category("tank").filter(func(id): return state.inventory.count(id) > 0)
+		if tanks.is_empty():
+			_tank_info.text += " Buy a tank in the Market to set up a new one."
+		for id in tanks:
+			var b := UI.small_button("Set up a new %s (have %d)" % [Game.db.items[id]["name"], state.inventory.count(id)])
+			b.pressed.connect(func(): Game.install_display_tank(id))
+			_tank_actions.add_child(b)
+		return
+	_tank_info.text = "Looks %d/100   ·   %d/%d fish   ·   Worth $%d" % [
+		state.tank_aesthetics(tank), tank.fish_ids.size(), tank.capacity, state.tank_price(tank, true)]
+	var edit := UI.small_button("Edit tank", "Place substrate, rocks, wood, plants and decor from your stock.")
+	edit.pressed.connect(func(): edit_tank_requested.emit())
+	_tank_actions.add_child(edit)
+	if tank.fish_ids.is_empty():
+		var hint := _label("No fish on display. Move some here from the Back room. Fish on display bring customers in!")
+		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hint.custom_minimum_size = Vector2(560, 0)
+		hint.modulate = Color(1, 1, 1, 0.7)
+		_display_fish.add_child(hint)
+	for f in state.tank_fish(tank):
+		_display_fish.add_child(_display_card(f))
+	if state.tank_fish(tank).any(func(f): return f.favorite):
+		var kept := _label("Favourites are kept back")
+		kept.add_theme_font_size_override("font_size", 12)
+		kept.modulate = Color(1, 1, 1, 0.7)
+		_display_fish.add_child(kept)
+
+
+func _display_card(f: Fish) -> Control:
+	var state := Game.state
+	var card := PanelContainer.new()
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	var top := HBoxContainer.new()
+	top.add_child(UI.fish_preview(f, state.species_of(f), Vector2(64, 34), 0.45))
+	var paid := "  (paid $%d)" % f.paid if f.paid > 0 else ""
+	var name := _label("%s %s\n%s  $%d%s" % [UI.sex_symbol(f), UI.fish_heading(state, f),
+		UI.stars_text(f.stars), state.fish_price(f), paid])
+	name.add_theme_font_size_override("font_size", 12)
+	top.add_child(name)
+	box.add_child(top)
+	if state.is_adult(f):
+		box.add_child(UI.purity_label(state, f))
+		UI.add_ribbons(box, f)
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 4)
+	var back := UI.small_button("To back room", state.move_blocker(f.id, Fish.HOLDING))
+	back.pressed.connect(func(): Game.move_fish(f.id, Fish.HOLDING))
+	buttons.add_child(back)
+	# Breeding tanks and anywhere else, as a menu (there can be up to 4 tanks).
+	buttons.add_child(UI.move_menu(state, f, func(to: String): Game.move_fish(f.id, to)))
+	buttons.add_child(UI.name_button(f))
+	buttons.add_child(UI.favorite_button(state, f))
+	box.add_child(buttons)
+	card.add_child(box)
+	return card
+
+
+# --- Counter -----------------------------------------------------------------
+
+func _refresh_counter() -> void:
+	var state := Game.state
+	_clear(_counter)
+	_counter.add_child(_title("Counter"))
+	if not state.clock.is_open:
+		_counter.add_child(_wrapped("The shop is closed."))
+	elif state.restocking:
+		_counter.add_child(_wrapped("Closed for restock: no customers while you build up stock. Time runs %d× faster. Press Reopen (top bar) when you're ready." % int(state.restock_speed())))
+	elif state.customer.is_empty():
+		_counter.add_child(_wrapped("Nobody at the counter right now. Someone will be along soon."))
+	else:
+		_add_customer_card()
+	if _counter_news != "":
+		var news := _wrapped(_counter_news)
+		news.add_theme_font_size_override("font_size", 13)
+		news.modulate = Color(0.25, 0.5, 0.35)
+		_counter.add_child(news)
+
+	_counter.add_child(HSeparator.new())
+	_add_orders()
+	_add_backorders()
+
+	_counter.add_child(HSeparator.new())
+	var appeal := _wrapped("Shop appeal: %d. Better and rarer fish on display bring customers more often." % roundi(state.shop_appeal()))
+	appeal.add_theme_font_size_override("font_size", 13)
+	appeal.modulate = Color(1, 1, 1, 0.7)
+	_counter.add_child(appeal)
+
+
+func _add_customer_card() -> void:
+	var state := Game.state
+	var c := state.customer
+	var who: String = c["name"]
+	var text := ""
+	match c["kind"]:
+		"fish":
+			var f := state.inventory.get_fish(c["fish_id"])
+			if f != null:
+				text = "%s would love your %s %s (%s)." % [who, UI.sex_symbol(f), state.fish_title(f), UI.stars_text(f.stars)]
+				var card := HBoxContainer.new()
+				card.add_child(UI.fish_preview(f, state.species_of(f), Vector2(90, 46)))
+				_counter.add_child(card)
+				text += "\n" + _cost_line(f, who, state.customer_price())
+				if state.customer_can_breed_order():
+					var wait: Array = Game.db.economy["backorders"]["breed_wait_days"]
+					text += "\nOr keep yours and breed them one: they'll come back in %d–%d days." % [wait[0], wait[1]]
+		"collector":
+			var f := state.inventory.get_fish(c["fish_id"])
+			if f != null:
+				var price := state.customer_price()
+				var usual := state.fish_price(f)
+				var ratio := float(price) / float(maxi(1, usual))
+				var how := "double the usual $%d" % usual if is_equal_approx(ratio, 2.0) \
+					else "%s× the usual $%d" % [("%.1f" % ratio).trim_suffix(".0"), usual]
+				text = "%s is a collector, looking for show-quality fish bred in your shop. They'll pay $%d for your %s %s %s (%s)." % [
+					who, price, UI.stars_text(f.stars), UI.sex_symbol(f), state.fish_title(f), how]
+				var card := HBoxContainer.new()
+				card.add_child(UI.fish_preview(f, state.species_of(f), Vector2(90, 46)))
+				_counter.add_child(card)
+		"item":
+			text = "%s would like to buy some %s." % [who, Game.db.items[c["item_id"]]["name"]]
+		"tank":
+			text = "%s wants to buy your whole display tank, fish and all!" % who
+		"request":
+			var request: Dictionary = c["request"]
+			text = "%s has a special request:\n\"%s\"\nPays the tank's value plus up to $%d bonus." % [
+				who, RequestGenerator.describe(request, Game.db.species[request["species_id"]]), request["base_reward"]]
+		"browse":
+			text = "%s is just browsing, and says your shop is lovely." % who
+		"wish_item":
+			text = "%s is looking for %s, but you're out." % [who, Game.db.items[c["item_id"]]["name"]]
+		"wish_fish":
+			var wish: Dictionary = c["wish"]
+			var terms := state.fish_wish_terms(wish)
+			text = "%s is looking for a %s %s %s, and you don't have one for sale." % [
+				who, "♂" if c["sex"] == Fish.MALE else "♀", UI.pretty(wish["value"]), Game.db.species[wish["species_id"]]["name"]]
+			if wish["source"] == "market":
+				text += "\nGet one from the Market for them: they'll pay $%d (%d%% under Market price, since you're out) and come back tomorrow." % [
+					terms["price"], roundi(float(Game.db.economy["backorders"]["discount"]) * 100)]
+			else:
+				text += "\nYou'll have to breed one: they'll pay $%d (double the usual price) and come back in %d days." % [
+					terms["price"], terms["wait_days"]]
+	if state.customer_can_backorder() and c["kind"] != "wish_fish":
+		text += "\nOrder it in for them? They'll wait and pay $%d (10%% off)." % \
+			Customers.backorder_price(state.wish_full_price(c), Game.db.economy["backorders"])
+	_counter.add_child(_wrapped(text))
+
+	var leaves_at: float = state.clock.minutes + c["patience"] - c["waited"]
+	var wait := _wrapped("Happy to wait until about %s." % GameClock.format_minutes(leaves_at))
+	wait.add_theme_font_size_override("font_size", 13)
+	wait.modulate = Color(1, 1, 1, 0.7)
+	_counter.add_child(wait)
+
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 6)
+	var blocker := state.customer_blocker()
+	match c["kind"]:
+		"request":
+			var accept := Button.new()
+			accept.text = "Accept"
+			accept.disabled = blocker != ""
+			accept.tooltip_text = blocker
+			accept.pressed.connect(_on_accept_request)
+			buttons.add_child(accept)
+			buttons.add_child(_decline_button("No thanks"))
+		"browse":
+			buttons.add_child(_decline_button("Wave goodbye"))
+		"wish_item":
+			buttons.add_child(_backorder_button(blocker))
+			buttons.add_child(_decline_button("Not today"))
+		"collector":
+			# Sell or not today: a collector can't be back-ordered or breed-ordered.
+			var sell := Button.new()
+			sell.text = "Sell $%d" % state.customer_price()
+			sell.disabled = blocker != ""
+			sell.tooltip_text = blocker
+			sell.pressed.connect(_on_serve)
+			buttons.add_child(sell)
+			buttons.add_child(_decline_button("Not today"))
+		"wish_fish":
+			var label := "Order it in" if c["wish"]["source"] == "market" else "Breed it for them"
+			buttons.add_child(_backorder_button(blocker, label))
+			buttons.add_child(_decline_button("Not today"))
+		_:
+			if state.customer_can_backorder():  # sold out while they waited
+				buttons.add_child(_backorder_button(""))
+			else:
+				var sell := Button.new()
+				sell.text = "Sell $%d" % state.customer_price()
+				sell.disabled = blocker != ""
+				sell.tooltip_text = blocker
+				sell.pressed.connect(_on_serve)
+				buttons.add_child(sell)
+			if state.customer_can_breed_order():
+				buttons.add_child(_breed_order_button())
+			buttons.add_child(_decline_button("Not today"))
+	_counter.add_child(buttons)
+
+
+## "You paid $44 · Priya will pay $30 (a $14 loss)."
+func _cost_line(f: Fish, who: String, offer: int) -> String:
+	var paid := Game.state.fish_paid(f)
+	if paid <= 0:
+		return "You bred this one, so $%d is all profit." % offer if f.strain_id == "" \
+			else "It cost you nothing. %s will pay $%d." % [who, offer]
+	var diff := offer - paid
+	var outcome := "breaking even" if diff == 0 else ("a $%d profit" % diff if diff > 0 else "a $%d loss" % -diff)
+	return "You paid $%d · %s will pay $%d (%s)." % [paid, who, offer, outcome]
+
+
+func _breed_order_button() -> Button:
+	var b := Button.new()
+	b.text = "Breed one"
+	var wait: Array = Game.db.economy["backorders"]["breed_wait_days"]
+	b.tooltip_text = "Keep your fish to breed from. They'll come back in %d–%d days for one like it, at the same price." % [wait[0], wait[1]]
+	b.pressed.connect(func():
+		var who: String = Game.state.customer["name"]
+		if Game.breed_order_for_customer():
+			var order: Dictionary = Game.state.backorders[-1]
+			_counter_news = "Promised %s a bred one. They'll be back on Day %d (see Back-orders)." % [who, order["due_day"]]
+			_refresh_counter())
+	return b
+
+
+func _backorder_button(blocker: String, label: String = "Order it in") -> Button:
+	var b := Button.new()
+	b.text = label
+	b.disabled = blocker != ""
+	b.tooltip_text = blocker if blocker != "" else "Goes on your back-order list. Hand it over once you have it."
+	b.pressed.connect(func():
+		var who: String = Game.state.customer["name"]
+		if Game.backorder_customer():
+			_counter_news = "Ordered it in for %s. Hand it over from Back-orders once you have it." % who
+			_refresh_counter())
+	return b
+
+
+func _add_backorders() -> void:
+	var state := Game.state
+	if state.backorders.is_empty():
+		return
+	_counter.add_child(HSeparator.new())
+	_counter.add_child(_label("Back-orders  %d/%d" % [state.backorders.size(), state.max_backorders()]))
+	for i in state.backorders.size():
+		var order: Dictionary = state.backorders[i]
+		var what := ""
+		if order.has("item_id"):
+			what = Game.db.items[order["item_id"]]["name"]
+		elif order.has("traits"):
+			var look := PackedStringArray()
+			for v in order["traits"].values():
+				look.append(UI.pretty(v))
+			var how: String = {"market": "from the Market", "bred": "bred by you"}.get(order.get("source", ""), "bred by you")
+			what = "%s %s %s, %s (ready Day %d)" % ["♂" if order["sex"] == Fish.MALE else "♀",
+				" ".join(look), Game.db.species[order["species_id"]]["name"], how, order["due_day"]]
+		var line := _wrapped("• %s for %s" % [what, order["name"]])
+		line.add_theme_font_size_override("font_size", 13)
+		_counter.add_child(line)
+		var buttons := HBoxContainer.new()
+		buttons.add_theme_constant_override("separation", 4)
+		var blocker := state.backorder_blocker(i)
+		var hand := UI.small_button("Hand over $%d" % order["price"], blocker)
+		hand.disabled = blocker != ""
+		hand.pressed.connect(func():
+			var earned := Game.fulfil_backorder(i)
+			if earned > 0:
+				_counter_news = "%s picked up their order: $%d." % [order["name"], earned]
+				_refresh_counter())
+		buttons.add_child(hand)
+		var cancel := UI.small_button("Cancel", "No penalty.")
+		cancel.pressed.connect(func(): Game.cancel_backorder(i))
+		buttons.add_child(cancel)
+		_counter.add_child(buttons)
+
+
+func _decline_button(text: String) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.pressed.connect(func():
+		_counter_news = ""
+		Game.decline_customer())
+	return b
+
+
+func _add_orders() -> void:
+	var state := Game.state
+	var max_orders := state.max_orders()
+	_counter.add_child(_label("Orders  %d/%d" % [state.orders.size(), max_orders]))
+	if state.orders.is_empty():
+		var none := _wrapped("No orders. Request customers drop by now and then.")
+		none.add_theme_font_size_override("font_size", 13)
+		none.modulate = Color(1, 1, 1, 0.7)
+		_counter.add_child(none)
+	for i in state.orders.size():
+		var order: Dictionary = state.orders[i]
+		var text := _wrapped("• " + RequestGenerator.describe(order, Game.db.species[order["species_id"]]))
+		text.add_theme_font_size_override("font_size", 13)
+		_counter.add_child(text)
+		var buttons := HBoxContainer.new()
+		buttons.add_theme_constant_override("separation", 4)
+		var preview := state.preview_delivery(i)
+		var build := UI.small_button("Build in Orders room", "Build this order in its own tank, separate from your display tank.")
+		build.pressed.connect(func(): orders_room_requested.emit())
+		buttons.add_child(build)
+		var deliver := UI.small_button("Give display tank → $%d" % preview["payout"] if not preview.is_empty() else "Give display tank",
+			"Hand over your current display tank instead. Better match, fish and looks = bigger bonus.")
+		deliver.disabled = preview.is_empty()
+		deliver.pressed.connect(_on_deliver.bind(i))
+		buttons.add_child(deliver)
+		var cancel := UI.small_button("Cancel", "No penalty.")
+		cancel.pressed.connect(func(): Game.cancel_order(i))
+		buttons.add_child(cancel)
+		_counter.add_child(buttons)
+
+
+func _on_serve() -> void:
+	var c := Game.state.customer.duplicate()
+	var earned := Game.serve_customer()
+	if earned > 0:
+		_counter_news = "Sold to %s for $%d." % [c["name"], earned]
+		_refresh_counter()
+
+
+func _on_accept_request() -> void:
+	var who: String = Game.state.customer["name"]
+	if Game.accept_customer_request():
+		_counter_news = "Took %s's order. Build it in the display tank, then deliver it." % who
+
+
+func _on_deliver(index: int) -> void:
+	var r := Game.deliver_order(index)
+	if r.is_empty():
+		return
+	_counter_news = "Delivered! Match %d%% · Fish %d%% · Looks %d%%\nTank $%d + bonus $%d = $%d" % [
+		roundi(r["match"] * 100), roundi(r["quality"] * 100), roundi(r["looks"] * 100),
+		r["tank_value"], r["bonus"], r["payout"]]
+	_refresh_counter()
+
+
+# --- Helpers -----------------------------------------------------------------
+
+func _clear(node: Node) -> void:
+	for child in node.get_children():
+		child.queue_free()
+
+
+func _label(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	return l
+
+
+func _wrapped(text: String) -> Label:
+	var l := _label(text)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(TEXT_WIDTH, 0)
+	return l
+
+
+func _title(text: String) -> Label:
+	var l := _label(text)
+	l.add_theme_font_size_override("font_size", 20)
+	return l
