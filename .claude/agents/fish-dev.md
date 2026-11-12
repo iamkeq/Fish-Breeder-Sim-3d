@@ -11,7 +11,7 @@ so in your report instead of guessing.
 
 ## Project
 
-- Root: `G:\Game Ideas\fish breeder store\fig-tree-fish-breeder-store`
+- Root: `G:\Game Ideas\fish breeder store 3d`
 - Godot (console exe):
   `/g/2026 Downloads/GODOT/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe`
 - `scripts/core/` holds every rule as plain `class_name` RefCounted classes
