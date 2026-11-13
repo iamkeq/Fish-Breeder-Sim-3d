@@ -18,11 +18,20 @@ Current version: **0.1.0** (Godot 4.7.2, Compatibility renderer)
   - the **desk** in the back room has the Lab, Fish Show, Gallery, Breeding
     book and Staff.
 - **Esc** frees the mouse (to use the top bar); click the game to look around
-  again. **Space** pauses, **F11** is full screen.
+  again. **Space** jumps, **P** pauses, **F11** is full screen.
 - Customers walk in the front door. Shoppers after regular stock pick it off
   the shelf and pay at the counter on their own (you hear a ding). Fish
   buyers look at the display tank first; special orders and back-orders come
   straight to the counter.
+
+## Art
+
+The 3D shop is built from Synty models (Polygon Shops, plus the fish tank and fish
+from Polygon Office). They are licensed, so `assets/Synty/` is not in the repository:
+copy the Godot export of the Polygon Shops pack there (and `PolygonOffice/Models`
+and `Textures/PolygonOffice_Texture_01_A.png` from the Office source files), then run
+`godot --headless --path . --import`. Nothing in the shop is drawn in code or from the
+old 2D sprite sheets; the 2D menus still use their own art.
 
 ## Development
 

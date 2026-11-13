@@ -4,3 +4,6 @@
 
 # Exported builds
 /build/
+
+# Synty asset packs: licensed, must not be published in a public repository
+/assets/Synty/

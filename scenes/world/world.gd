@@ -43,13 +43,20 @@ func _ready() -> void:
 func _build_environment() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("#cfe3ea")
+	env.background_color = Color("#a9dcf5")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("#fff3e0")
-	env.ambient_light_energy = 0.6
+	env.ambient_light_color = Color("#ffe2bd")  # warm, like late afternoon
+	env.ambient_light_energy = 1.0
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	var holder := WorldEnvironment.new()
 	holder.environment = env
 	add_child(holder)
+	# Low warm sunlight from the street side (no shadows: it just shapes the surfaces).
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-42, 28, 0)
+	sun.light_color = Color("#ffd9a0")
+	sun.light_energy = 0.7
+	add_child(sun)
 
 
 func _build_ui() -> void:

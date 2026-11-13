@@ -40,7 +40,7 @@ const FAST_FORWARD := 20.0
 var db: DataDB
 var state: GameState
 var _pause_requests: int = 0
-## The player's own pause (the Pause button / Space). Menus never clear it.
+## The player's own pause (the Pause button / P). Menus never clear it.
 var manual_paused: bool = false
 ## Whether this run loads and writes the save file. Off for headless runs and
 ## scripted tools (tests, screenshots), so they never touch a real save.

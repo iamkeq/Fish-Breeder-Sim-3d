@@ -87,7 +87,7 @@ func _ready() -> void:
 	_market_button.add_sibling(_goals_button)
 	_pause_button = Button.new()
 	_pause_button.toggle_mode = true
-	_pause_button.focus_mode = Control.FOCUS_NONE  # so Space isn't eaten by the button
+	_pause_button.focus_mode = Control.FOCUS_NONE  # so keys aren't eaten by the button
 	_pause_button.pressed.connect(Game.toggle_pause)
 	_clock_label.add_sibling(_pause_button)
 	_fullscreen_button = Button.new()
@@ -150,7 +150,7 @@ func _ready() -> void:
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_SPACE:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_P:
 		Game.toggle_pause()
 		get_viewport().set_input_as_handled()
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F11:
@@ -197,7 +197,7 @@ func _update_top_bar() -> void:
 		_clock_label.text += "  (paused)"
 	_pause_button.set_pressed_no_signal(Game.manual_paused)
 	_pause_button.text = "Resume" if Game.manual_paused else "Pause"
-	_pause_button.tooltip_text = "Stop the clock so you can think (Space). Everything still works while paused."
+	_pause_button.tooltip_text = "Stop the clock so you can think (P). Everything still works while paused."
 	_update_fullscreen_button()
 	if state.restocking:
 		_clock_label.text += "  ×%d" % int(state.restock_speed())

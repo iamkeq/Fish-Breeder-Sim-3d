@@ -1,40 +1,5 @@
 extends RefCounted
-## Tiny helpers for building the shop out of primitives.
-
-static var _materials := {}
-
-
-## A plain matte material for a colour (shared between everything of that colour).
-static func material(color: Color, roughness: float = 0.9) -> StandardMaterial3D:
-	var key := "%s_%s" % [color.to_html(true), roughness]
-	if not _materials.has(key):
-		var m := StandardMaterial3D.new()
-		m.albedo_color = color
-		m.roughness = roughness
-		if color.a < 1.0:
-			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_materials[key] = m
-	return _materials[key]
-
-
-## A box mesh centred on `pos`; `solid` also gives it a collider for the player.
-static func box(parent: Node, pos: Vector3, size: Vector3, color: Color, solid: bool = false) -> MeshInstance3D:
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	var inst := MeshInstance3D.new()
-	inst.mesh = mesh
-	inst.material_override = material(color)
-	inst.position = pos
-	parent.add_child(inst)
-	if solid:
-		var body := StaticBody3D.new()
-		var shape := CollisionShape3D.new()
-		var s := BoxShape3D.new()
-		s.size = size
-		shape.shape = s
-		body.add_child(shape)
-		inst.add_child(body)
-	return inst
+## Small helpers for the 3D shop. (The models themselves come from Synty: see synty.gd.)
 
 
 ## A text label that always faces the player (or fixed, facing +Z, if not billboard).

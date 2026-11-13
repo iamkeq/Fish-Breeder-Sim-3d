@@ -9,7 +9,7 @@ const TANK_SIZE := Vector3(1.2, 0.6, 0.55)
 const STAND_HEIGHT := 0.78
 const PER_WALL := 5
 ## Where the holding tank stands (the back wall) and the walls the rows sit against.
-const HOLDING_POS := Vector3(0.0, 0.0, 10.2)
+const HOLDING_POS := Vector3(0.0, 0.0, 11.7)
 const WALL_X := 5.3
 const FIRST_Z := 4.2
 const SPACING := 1.5
@@ -23,7 +23,7 @@ func _ready() -> void:
 	holding.position = HOLDING_POS
 	add_child(holding)
 	holding.setup(Fish.HOLDING, Vector3(1.5, 0.6, 0.55), STAND_HEIGHT, "Holding", "tank",
-		"Click: Holding tank", Color("#74a99a"))
+		"Click: Holding tank", Color("#4f9a86"))
 	Game.changed.connect(_sync)
 	_sync()
 
@@ -49,5 +49,5 @@ func _sync() -> void:
 		tank.rotation.y = PI * 0.5  # long side along the wall
 		add_child(tank)
 		tank.setup(Fish.breeding_location(i), TANK_SIZE, STAND_HEIGHT, "Tank %d" % (i + 1), "tank",
-			"Click: Tank %d" % (i + 1), Color("#8a6a4f"))
+			"Click: Tank %d" % (i + 1), Color("#b9793f"))
 		_tanks.append(tank)

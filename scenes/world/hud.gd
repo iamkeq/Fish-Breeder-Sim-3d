@@ -20,7 +20,8 @@ var _desk_box: VBoxContainer
 func _ready() -> void:
 	super._ready()
 	$Background.visible = false
-	$Margin.mouse_filter = Control.MOUSE_FILTER_IGNORE  # clicks reach the 3D world
+	mouse_filter = Control.MOUSE_FILTER_IGNORE  # clicks and mouse look reach the 3D world
+	$Margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	$Margin/Layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_shop_button.visible = false
 	_back_room_button.visible = false

@@ -1,0 +1,154 @@
+extends RefCounted
+## Loads and places the Synty models the 3D shop is built from (Polygon Shops
+## prefabs, plus the fish tank and fish from Polygon Office). Prefab colliders are
+## removed: the shop adds its own simple boxes where the player needs to be stopped.
+
+const SHOPS := "res://assets/Synty/PolygonShops/Prefabs/"
+const MATERIALS := "res://assets/Synty/PolygonShops/Materials/"
+const OFFICE := "res://assets/Synty/PolygonOffice/"
+
+static var _scenes := {}
+static var _office_body: StandardMaterial3D
+static var _office_glass: StandardMaterial3D
+
+
+## A fresh copy of a Polygon Shops prefab (path under Prefabs/, no extension), without colliders.
+static func make(rel: String) -> Node3D:
+	if not _scenes.has(rel):
+		_scenes[rel] = load(SHOPS + rel + ".tscn")
+	var node: Node3D = _scenes[rel].instantiate()
+	_strip(node)
+	return node
+
+
+## Make a prefab and put it in `parent` at `pos`, turned `yaw_deg` degrees about Y.
+static func put(parent: Node, rel: String, pos: Vector3, yaw_deg: float = 0.0, scale: Vector3 = Vector3.ONE) -> Node3D:
+	var node := make(rel)
+	node.position = pos
+	node.rotation_degrees.y = yaw_deg
+	node.scale = scale
+	parent.add_child(node)
+	return node
+
+
+static func _strip(node: Node) -> void:
+	if node is CollisionObject3D:
+		(node as CollisionObject3D).collision_layer = 0
+		(node as CollisionObject3D).collision_mask = 0
+	for child in node.get_children():
+		if child is CollisionObject3D or child is CollisionShape3D:
+			node.remove_child(child)
+			child.free()
+		else:
+			_strip(child)
+
+
+## Bounding box of every visible mesh under `node`, in the node's parent space.
+static func bounds(node: Node, xf: Transform3D = Transform3D.IDENTITY) -> AABB:
+	var out := AABB()
+	var first := true
+	var t := xf
+	if node is Node3D:
+		t = xf * (node as Node3D).transform
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null and (node as MeshInstance3D).visible:
+		out = t * (node as MeshInstance3D).get_aabb()
+		first = false
+	for child in node.get_children():
+		var b := bounds(child, t)
+		if b.size != Vector3.ZERO:
+			out = b if first else out.merge(b)
+			first = false
+	return out
+
+
+## Scale `node` evenly so it is `height` metres tall, standing on y = 0 at its own origin.
+static func fit_height(node: Node3D, height: float) -> void:
+	var b := bounds(node)
+	if b.size.y > 0.0:
+		node.scale *= height / b.size.y
+
+
+## Replace the material on every surface of every mesh under `node`.
+static func paint(node: Node, material: Material) -> void:
+	if node is MeshInstance3D:
+		var mi := node as MeshInstance3D
+		if mi.mesh != null:
+			for s in mi.mesh.get_surface_count():
+				mi.set_surface_override_material(s, material)
+	for child in node.get_children():
+		paint(child, material)
+
+
+static func material(name: String) -> Material:
+	return load(MATERIALS + name + ".tres")
+
+
+## A Synty material with its colour multiplied by `tint` (to warm up a plain surface).
+static func tinted(name: String, tint: Color) -> Material:
+	var m: StandardMaterial3D = (load(MATERIALS + name + ".tres") as StandardMaterial3D).duplicate()
+	m.albedo_color = tint
+	return m
+
+
+## A box the player (and nothing else) bumps into, with no picture.
+static func solid(parent: Node, pos: Vector3, size: Vector3) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.position = pos
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	shape.shape = box
+	body.add_child(shape)
+	parent.add_child(body)
+	return body
+
+
+# --- Polygon Office fish tank and fish ----------------------------------------------
+
+## The tank model (cabinet, glass and water surface) with its texture applied.
+## Dimensions in metres: about 1.29 wide, 0.67 deep, 1.34 tall.
+static func office_tank() -> Node3D:
+	var node: Node3D = load(OFFICE + "Models/SM_Prop_Fishtank_01.fbx").instantiate()
+	_strip(node)
+	for m in node.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		var glassy := String(mi.name).contains("Glass") or String(mi.name).contains("FX")
+		mi.material_override = _glass_material() if glassy else _body_material()
+	var player := node.find_child("AnimationPlayer", true, false)
+	if player != null:
+		player.free()
+	return node
+
+
+## Polygon Office fish (one model, about 17 cm long, nose towards -Z) in `color`.
+static func fish(color: Color) -> Node3D:
+	var node: Node3D = load(OFFICE + "Models/SM_Prop_Fish_01.fbx").instantiate()
+	_strip(node)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 1.0
+	paint(node, mat)
+	var player := node.find_child("AnimationPlayer", true, false)
+	if player != null:
+		player.free()
+	return node
+
+
+static func _body_material() -> StandardMaterial3D:
+	if _office_body == null:
+		_office_body = StandardMaterial3D.new()
+		_office_body.albedo_color = Color("#93602f")  # warm wood for the cabinet
+		_office_body.roughness = 1.0
+	return _office_body
+
+
+static func _glass_material() -> StandardMaterial3D:
+	if _office_glass == null:
+		_office_glass = StandardMaterial3D.new()
+		_office_glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_office_glass.albedo_color = Color(0.55, 0.82, 0.92, 0.12)
+		_office_glass.roughness = 0.2
+		_office_glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return _office_glass

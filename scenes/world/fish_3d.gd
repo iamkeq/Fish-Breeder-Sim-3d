@@ -1,24 +1,33 @@
 extends Node3D
-## One fish swimming slowly back and forth inside a 3D tank: a billboard
-## Sprite3D cut from the species' sprite sheet (see fish_art.gd). Fry are
-## smaller. Position is in the tank's local space, kept inside `bounds`.
+## One fish swimming slowly back and forth inside a 3D tank: the Synty fish model,
+## coloured by its variety. Fry are smaller. Position is in the tank's local space,
+## kept inside `bounds`.
 
-const FishArt := preload("res://scenes/world/fish_art.gd")
-const UI := preload("res://scenes/ui/ui_kit.gd")
-## Metres per sprite pixel (a guppy is about 20 cm long).
-const PIXEL_SIZE := 0.003
+const Synty := preload("res://scenes/world/synty.gd")
+## Size of an adult fish relative to the model (a guppy is about 20 cm; the model is 17 cm).
+const ADULT_SCALE := 1.15
 const SPEED_RANGE := Vector2(0.07, 0.17)
+## Body colour per guppy variety. Anything not listed gets a colour made from its name.
+const VARIETY_COLORS := {
+	"normal": "#b9b2a0", "red": "#e0453a", "blue": "#3b6fd1", "yellow": "#f2cf3d", "black": "#2b2b30",
+	"white": "#f4f1ea", "grass": "#6fae5a", "orange": "#f08a2e", "purple": "#8a52c9", "pink": "#f08fb8",
+	"turquoise": "#3cc7c0", "gold": "#e5b72e", "sunset": "#f26a3d", "pastel": "#f7d6dc", "half_black": "#5a4a52",
+	"tuxedo": "#35353d", "dalmatian": "#d9d6cf", "koi": "#f2a45a", "leopard": "#d9a441", "snakeskin": "#8fa05a",
+	"mosaic": "#6a8fc0", "neon": "#3df0d8", "albino": "#fbf3e6", "glass": "#cfeaf2", "lavender": "#b79be0",
+	"platinum": "#d8dbe2", "galaxy": "#4a3aa8", "dragon": "#c2352e", "phoenix": "#f5883a", "calico": "#e6b98d",
+	"midnight": "#23265c", "opal": "#bfe3d6", "tiger": "#e89a2f",
+}
 
 var fish: Fish
 var species: Dictionary
 var bounds := AABB(Vector3(-0.4, 0.1, -0.2), Vector3(0.8, 0.4, 0.4))
 
-var _sprite: Sprite3D
-var _fallback: MeshInstance3D
+var _model: Node3D
 var _target := Vector3.ZERO
 var _speed := 0.1
 var _rest := 0.0
 var _facing_right := true
+var _yaw := -PI * 0.5
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
 
@@ -29,14 +38,8 @@ func setup(p_fish: Fish, p_species: Dictionary, p_bounds: AABB) -> void:
 	bounds = p_bounds
 	_rng.seed = fish.id * 7919 + 13
 	_time = _rng.randf() * 10.0
-	_sprite = Sprite3D.new()
-	_sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	_sprite.shaded = false
-	_sprite.double_sided = true
-	_sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
-	_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
-	_sprite.region_enabled = true
-	add_child(_sprite)
+	_model = Synty.fish(_body_color())
+	add_child(_model)
 	position = _random_point()
 	_pick_target()
 	_update_frame()
@@ -78,30 +81,23 @@ func _process(delta: float) -> void:
 
 
 func _update_frame() -> void:
-	var art := FishArt.frame(fish, species, _facing_right, _rest <= 0.0, _time)
-	var growth := FishArt.growth(fish, species)
-	if art.is_empty():
-		_show_fallback(growth)
-		return
-	var rect: Rect2 = art["rect"]
-	_sprite.texture = UI.sheet_texture(art["sheet"])
-	_sprite.region_rect = rect
-	_sprite.flip_h = art["flip"]
-	_sprite.pixel_size = PIXEL_SIZE * float(art["scale"]) * growth
-	_sprite.modulate = art["tint"]
-	_sprite.modulate.a = lerpf(0.8, 1.0, growth)
+	var growth := lerpf(0.4, 1.0, clampf(float(fish.age_days) / float(species.get("days_to_adult", 1)), 0.0, 1.0))
+	_model.scale = Vector3.ONE * ADULT_SCALE * growth
+	# The model's nose points to -Z: -90 degrees faces right (+X), +90 faces left.
+	_yaw = lerp_angle(_yaw, -PI * 0.5 if _facing_right else PI * 0.5, 0.12)
+	_model.rotation.y = _yaw
+	# A gentle wiggle while swimming.
+	_model.rotation.z = sin(_time * 9.0) * 0.06 if _rest <= 0.0 else 0.0
 
 
-## Species without a sprite sheet: a little coloured oval.
-func _show_fallback(growth: float) -> void:
-	if _fallback == null:
-		_fallback = MeshInstance3D.new()
-		var mesh := SphereMesh.new()
-		mesh.radius = 0.04
-		mesh.height = 0.08
-		_fallback.mesh = mesh
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(species.get("palette", {}).get(fish.get_trait("body_color"), "#cccccc"))
-		_fallback.material_override = mat
-		add_child(_fallback)
-	_fallback.scale = Vector3(1.6, 1.0, 0.7) * growth
+## The variety's colour (see VARIETY_COLORS), or one made from its name.
+func _body_color() -> Color:
+	var data: Dictionary = species.get("sprites", {})
+	var look := String(fish.get_trait(data.get("trait", "variety")))
+	if VARIETY_COLORS.has(look):
+		return Color(VARIETY_COLORS[look])
+	var palette: Dictionary = species.get("palette", {})
+	var from_palette := String(palette.get(String(fish.get_trait("body_color")), ""))
+	if from_palette != "":
+		return Color(from_palette)
+	return Color.from_hsv(float(absi(look.hash()) % 360) / 360.0, 0.55, 0.9)

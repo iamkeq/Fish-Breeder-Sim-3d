@@ -1,5 +1,5 @@
 extends CharacterBody3D
-## First-person walker: WASD / arrow keys, mouse look, gravity, and a ray that
+## First-person walker: WASD / arrow keys, Space to jump, mouse look, gravity, and a ray that
 ## finds what you're pointing at. The world switches `active` off while a menu
 ## is open or the mouse is free.
 
@@ -7,6 +7,7 @@ const Interactable := preload("res://scenes/world/interactable.gd")
 
 const SPEED := 3.4
 const GRAVITY := 18.0
+const JUMP_SPEED := 5.2  # about 0.75 m high
 const MOUSE_SENSITIVITY := 0.0025
 const REACH := 3.0
 const EYE_HEIGHT := 1.6
@@ -65,7 +66,10 @@ func _physics_process(delta: float) -> void:
 	var dir := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
 	velocity.x = dir.x * SPEED
 	velocity.z = dir.z * SPEED
-	velocity.y = 0.0 if is_on_floor() else velocity.y - GRAVITY * delta
+	if is_on_floor():
+		velocity.y = JUMP_SPEED if active and Input.is_key_pressed(KEY_SPACE) else 0.0
+	else:
+		velocity.y -= GRAVITY * delta
 	move_and_slide()
 
 
