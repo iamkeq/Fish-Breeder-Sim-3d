@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.2] - 2026-11-13
+
+### Added
+- **Crouch:** hold Ctrl (or C) to drop to eye level with the tanks and look
+  in through the glass. You walk slower while crouched and can't jump. (C is
+  there for the browser build, where Ctrl+W closes the tab.)
+
+### Fixed
+- The last slivers of the tank model's built-in ornaments are gone from inside
+  the glass, which showed when you looked in up close.
+
 ## [0.3.1] - 2026-11-13
 
 ### Changed

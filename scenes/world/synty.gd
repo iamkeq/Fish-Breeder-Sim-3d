@@ -142,8 +142,8 @@ static func office_tank() -> Node3D:
 ## triangle inside the water space so only the cabinet, frame and floor remain, and the tank
 ## can show the decor you place instead. (Model metres; the tank is 1.29 x 1.34 x 0.67.)
 static var _empty_meshes := {}
-const INSIDE_MIN := Vector3(-0.56, 0.69, -0.275)
-const INSIDE_MAX := Vector3(0.55, 1.2, 0.26)
+const INSIDE_MIN := Vector3(-0.575, 0.69, -0.282)
+const INSIDE_MAX := Vector3(0.575, 1.24, 0.282)
 
 
 static func _empty_tank_mesh(mesh: Mesh) -> Mesh:

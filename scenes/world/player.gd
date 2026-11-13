@@ -1,5 +1,6 @@
 extends CharacterBody3D
-## First-person walker: WASD / arrow keys, Space to jump, mouse look, gravity, and a ray that
+## First-person walker: WASD / arrow keys, Space to jump, hold Ctrl or C to crouch (eye level
+## with the tanks), mouse look, gravity, and a ray that
 ## finds what you're pointing at. The world switches `active` off while a menu
 ## is open or the mouse is free.
 
@@ -11,6 +12,11 @@ const JUMP_SPEED := 5.2  # about 0.75 m high
 const MOUSE_SENSITIVITY := 0.0025
 const REACH := 3.0
 const EYE_HEIGHT := 1.6
+## Eye height while crouching (Ctrl): level with the middle of a tank's glass.
+const CROUCH_EYE_HEIGHT := 0.95
+const CROUCH_SPEED := 1.6
+## How fast the eye moves between standing and crouching (per second).
+const CROUCH_RATE := 6.0
 const MAX_PITCH := 1.48  # about 85 degrees
 
 ## Movement and mouse look only work while this is true.
@@ -19,6 +25,7 @@ var active := false
 var camera: Camera3D
 var _ray: RayCast3D
 var _pitch := 0.0
+var crouching := false
 
 
 func _ready() -> void:
@@ -63,11 +70,16 @@ func _physics_process(delta: float) -> void:
 	if active:
 		input.x = _axis(KEY_D, KEY_RIGHT) - _axis(KEY_A, KEY_LEFT)
 		input.y = _axis(KEY_S, KEY_DOWN) - _axis(KEY_W, KEY_UP)
+	# Ctrl, or C (in a browser, Ctrl+W closes the tab).
+	crouching = active and (Input.is_key_pressed(KEY_CTRL) or Input.is_key_pressed(KEY_C))
+	var eye := CROUCH_EYE_HEIGHT if crouching else EYE_HEIGHT
+	camera.position.y = move_toward(camera.position.y, eye, CROUCH_RATE * delta)
+	var speed := CROUCH_SPEED if crouching else SPEED
 	var dir := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
-	velocity.x = dir.x * SPEED
-	velocity.z = dir.z * SPEED
+	velocity.x = dir.x * speed
+	velocity.z = dir.z * speed
 	if is_on_floor():
-		velocity.y = JUMP_SPEED if active and Input.is_key_pressed(KEY_SPACE) else 0.0
+		velocity.y = JUMP_SPEED if active and not crouching and Input.is_key_pressed(KEY_SPACE) else 0.0
 	else:
 		velocity.y -= GRAVITY * delta
 	move_and_slide()

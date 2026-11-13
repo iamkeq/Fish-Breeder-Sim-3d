@@ -18,7 +18,7 @@ Current version: **0.1.0** (Godot 4.7.2, Compatibility renderer)
   - the **desk** in the back room has the Lab, Fish Show, Gallery, Breeding
     book and Staff.
 - **Esc** frees the mouse (to use the top bar); click the game to look around
-  again. **Space** jumps, **P** pauses, **F11** is full screen.
+  again. **Space** jumps, hold **Ctrl** (or **C**) to crouch and look into the tanks, **P** pauses, **F11** is full screen.
 - Customers walk in the front door. Shoppers after regular stock pick it off
   the shelf and pay at the counter on their own (you hear a ding). Fish
   buyers look at the display tank first; special orders and back-orders come
