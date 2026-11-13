@@ -7,6 +7,7 @@ extends "res://scenes/main.gd"
 
 const RoomOverlay := preload("res://scenes/world/room_overlay.gd")
 const UI_KIT := preload("res://scenes/ui/ui_kit.gd")
+const ShopFront := preload("res://scenes/shop_front.gd")
 
 const COUNTER_SIZE := Vector2(360, 540)
 const DISPLAY_SIZE := Vector2(800, 540)
@@ -15,6 +16,10 @@ const WIDE_SIZE := Vector2(1200, 540)
 var _room_overlay: ColorRect
 var _rooms: Control
 var _desk_box: VBoxContainer
+
+
+func _init() -> void:
+	ShopFront.enabled = false  # the shop shows its own improvements
 
 
 func _ready() -> void:

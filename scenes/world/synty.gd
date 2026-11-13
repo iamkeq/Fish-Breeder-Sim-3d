@@ -7,17 +7,29 @@ const SHOPS := "res://assets/Synty/PolygonShops/Prefabs/"
 const MATERIALS := "res://assets/Synty/PolygonShops/Materials/"
 const OFFICE := "res://assets/Synty/PolygonOffice/"
 const CITY := "res://assets/Synty/PolygonCity/Prefabs/"
+const PIRATES := "res://assets/PolygonPirates/Prefabs/"
+const DUNGEON := "res://assets/PolygonDungeon/Prefabs/"
 
 static var _scenes := {}
 static var _office_body: StandardMaterial3D
 static var _office_glass: StandardMaterial3D
 
 
+static func _path(rel: String) -> String:
+	if rel.begins_with("City/"):
+		return CITY + rel.substr(5) + ".tscn"
+	if rel.begins_with("Pirates/"):
+		return PIRATES + rel.substr(8) + ".tscn"
+	if rel.begins_with("Dungeon/"):
+		return DUNGEON + rel.substr(8) + ".tscn"
+	return SHOPS + rel + ".tscn"
+
+
 ## A fresh copy of a Polygon Shops prefab (path under Prefabs/, no extension), without colliders.
-## A path starting "City/" is a Polygon City prefab instead (the street outside).
+## A path starting "City/", "Pirates/" or "Dungeon/" is a prefab from that pack instead.
 static func make(rel: String) -> Node3D:
 	if not _scenes.has(rel):
-		_scenes[rel] = load(CITY + rel.substr(5) + ".tscn") if rel.begins_with("City/") else load(SHOPS + rel + ".tscn")
+		_scenes[rel] = load(_path(rel))
 	var node: Node3D = _scenes[rel].instantiate()
 	_strip(node)
 	return node
@@ -118,10 +130,45 @@ static func office_tank() -> Node3D:
 		var mi := m as MeshInstance3D
 		var glassy := String(mi.name).contains("Glass") or String(mi.name).contains("FX")
 		mi.material_override = _glass_material() if glassy else _body_material()
+		if not glassy:
+			mi.mesh = _empty_tank_mesh(mi.mesh)
 	var player := node.find_child("AnimationPlayer", true, false)
 	if player != null:
 		player.free()
 	return node
+
+
+## The model has a little baked-in scene inside the glass (torii, kelp, driftwood). Drop every
+## triangle inside the water space so only the cabinet, frame and floor remain, and the tank
+## can show the decor you place instead. (Model metres; the tank is 1.29 x 1.34 x 0.67.)
+static var _empty_meshes := {}
+const INSIDE_MIN := Vector3(-0.56, 0.69, -0.275)
+const INSIDE_MAX := Vector3(0.55, 1.2, 0.26)
+
+
+static func _empty_tank_mesh(mesh: Mesh) -> Mesh:
+	if _empty_meshes.has(mesh):
+		return _empty_meshes[mesh]
+	var out := ArrayMesh.new()
+	var src := mesh as ArrayMesh
+	for surface in src.get_surface_count():
+		var mdt := MeshDataTool.new()
+		if mdt.create_from_surface(src, surface) != OK:
+			continue
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for face in mdt.get_face_count():
+			var ids: Array[int] = [mdt.get_face_vertex(face, 0), mdt.get_face_vertex(face, 1), mdt.get_face_vertex(face, 2)]
+			var centre := (mdt.get_vertex(ids[0]) + mdt.get_vertex(ids[1]) + mdt.get_vertex(ids[2])) / 3.0
+			if AABB(INSIDE_MIN, INSIDE_MAX - INSIDE_MIN).has_point(centre):
+				continue
+			for id in ids:
+				st.set_normal(mdt.get_vertex_normal(id))
+				st.set_uv(mdt.get_vertex_uv(id))
+				st.add_vertex(mdt.get_vertex(id))
+		st.commit(out)
+	_empty_meshes[mesh] = out
+	return out
 
 
 ## Polygon Office fish (one model, about 17 cm long, nose towards -Z) in `color`.

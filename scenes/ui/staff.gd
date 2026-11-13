@@ -2,6 +2,7 @@ extends ColorRect
 ## The Staff screen: your helpers (each does one job overnight), and the jobs
 ## still open to hire for. Pauses the shop clock while open.
 
+const SyntyIcons := preload("res://scenes/world/synty_icons.gd")
 const UI := preload("res://scenes/ui/ui_kit.gd")
 
 var _header: Label
@@ -108,24 +109,16 @@ func _refresh() -> void:
 			_body.add_child(_hire_row(state, task))
 
 
-## A coloured circle with the helper's initial. Drawn, no art needed.
+## A head-and-shoulders picture of the helper: one of the shop's Synty people, picked by name.
 static func avatar(m: Dictionary, size: float = 48.0) -> Control:
-	var c := Control.new()
-	c.custom_minimum_size = Vector2(size, size)
-	c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var tint := Color.from_string(str(m.get("color", "#999999")), Color(0.6, 0.6, 0.6))
-	var letter := str(m.get("name", "?")).left(1).to_upper()
-	c.draw.connect(func():
-		var mid := Vector2(size, size) / 2.0
-		c.draw_circle(mid, size / 2.0, tint.darkened(0.25))
-		c.draw_circle(mid, size / 2.0 - 2.0, tint)
-		var font := ThemeDB.fallback_font
-		var font_size := int(size * 0.5)
-		var width := font.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-		c.draw_string(font, Vector2(mid.x - width / 2.0, mid.y + font_size * 0.35), letter,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0.15, 0.1, 0.08)))
-	c.tooltip_text = str(m.get("name", ""))
-	return c
+	var pic := TextureRect.new()
+	var who := str(m.get("name", "?"))
+	pic.texture = SyntyIcons.person(who, hash(who))
+	pic.custom_minimum_size = Vector2(size, size)
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return pic
 
 
 func _card(state: GameState, m: Dictionary) -> Control:

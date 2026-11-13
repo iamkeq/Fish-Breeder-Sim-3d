@@ -30,8 +30,10 @@ The 3D shop is built from Synty models (Polygon Shops, the street outside from P
 from Polygon Office). They are licensed, so `assets/Synty/` is not in the repository:
 copy the Godot exports of the Polygon Shops and Polygon City packs there (and `PolygonOffice/Models`
 and `Textures/PolygonOffice_Texture_01_A.png` from the Office source files), then run
-`godot --headless --path . --import`. Nothing in the shop is drawn in code or from the
-old 2D sprite sheets; the 2D menus still use their own art.
+`godot --headless --path . --import`. The tank decor and menu icons also use the
+Polygon Pirates and Polygon Dungeon Godot exports, which go in `assets/PolygonPirates/`
+and `assets/PolygonDungeon/` (their prefabs expect those paths). Nothing in the shop or the menus is drawn in code or
+taken from the old 2D sprite sheets.
 
 ## Development
 

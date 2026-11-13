@@ -13,8 +13,10 @@ const Synty := preload("res://scenes/world/synty.gd")
 const SLOT_X := [0.24, 0.74, 0.1, 0.52, 0.34, 0.88]
 const ROW_Z := {"back": -0.28, "mid": 0.0, "front": 0.28}
 const ROW_SCALE := {"back": 0.85, "mid": 0.95, "front": 1.0}
-const SPRITE_HEIGHT := {"short": 0.2, "medium": 0.34, "tall": 0.6}
+const SPRITE_HEIGHT := {"short": 0.3, "medium": 0.42, "tall": 0.62}
 const SAND_HEIGHT := 0.07
+## How close you must be to see a tank's name.
+const LABEL_RANGE := 4.5
 
 ## The Synty tank model: where its glass sits (model metres) before stretching.
 const MODEL_GLASS_BOTTOM := 0.70
@@ -22,16 +24,36 @@ const MODEL_GLASS_HEIGHT := 0.55
 const MODEL_GLASS_WIDTH := 1.18
 const MODEL_GLASS_DEPTH := 0.57
 
-## Which Synty model stands in for each kind of decor (the closest match in the packs).
-const PLANTS := ["Environments/SM_Env_Plant_01", "Environments/SM_Env_Plant_02"]
-const ROCKS := ["Generic/SM_Generic_Small_Rocks_01", "Generic/SM_Generic_Small_Rocks_02", "Generic/SM_Generic_Small_Rocks_03",
-	"Generic/SM_Generic_Small_Rocks_04", "Generic/SM_Generic_Small_Rocks_05"]
-const WOOD := ["Generic/SM_Generic_TreeStump_01"]
+## Which Synty model stands in for each kind of decor (Polygon Pirates and Polygon Dungeon).
+const PIRATE_ENV := "Pirates/Environments/SM_Env_"
+const ROCK := "Dungeon/Environments/Rocks/SM_Env_"
+## Plants by height class (anything not named gets one picked by its id).
+const PLANTS := {
+	"tall": [PIRATE_ENV + "Plants_03", PIRATE_ENV + "PalmBush_03", PIRATE_ENV + "Flowers_01"],
+	"medium": [PIRATE_ENV + "Plants_01", PIRATE_ENV + "Plants_02", PIRATE_ENV + "Fern_01"],
+	"short": [PIRATE_ENV + "Grass_01", PIRATE_ENV + "Grass_02", PIRATE_ENV + "Grass_03"],
+}
+const ROCKS := [ROCK + "Rock_Round_01", ROCK + "Rock_Round_02", ROCK + "Rock_Round_03", ROCK + "Rock_Round_04"]
+const WOOD := [PIRATE_ENV + "Mangrove_Roots_01", "Pirates/Props/SM_Prop_WoodPlank_01"]
+## Decor, rocks and wood with a model of their own, by item id.
 const DECOR := {
-	"clay_pot": "Props/SM_Prop_Planter_Vase_01",
-	"coconut_hut": "Props/SM_Prop_Planter_Box_Wood_01",
-	"ruined_arch": "Props/SM_Prop_Planter_Box_Wood_02",
-	"treasure_chest": "Props/SM_Prop_Cardboard_Box_02",
+	"clay_pot": "Dungeon/Props/SM_Prop_Vase_02",
+	"coconut_hut": "Pirates/Props/SM_Prop_Barrel_Half_01",
+	"ruined_arch": "Dungeon/Environments/Walls/SM_Env_Wall_Archway_01",
+	"treasure_chest": "Pirates/Props/SM_Prop_Chest_01",
+	"seiryu_stone": ROCK + "Rock_Pillar_01",
+	"mountain_rock": ROCK + "Rock_Round_02",
+	"rock_cave": ROCK + "RockPile_Rounded_01",
+	"holey_rock": PIRATE_ENV + "Rock_Arch_01",
+	"lava_rock": ROCK + "Rock_Spike_01",
+	"mossy_slate": ROCK + "Rock_Flat_Large_01",
+	"seiryu_spire": ROCK + "Rock_Spike_03",
+	"slate_stack": ROCK + "Rock_Flat_01",
+	"zen_stones": ROCK + "Rock_Pebble_01",
+	"mixed_pebbles": ROCK + "Rubble_Pebbles_01",
+	"mossy_driftwood": PIRATE_ENV + "Mangrove_Roots_01",
+	"spider_wood": "Pirates/Props/SM_Prop_WoodPlank_01",
+	"hollow_log": "Generic/SM_Generic_TreeStump_01",
 }
 ## Substrate colour: the Synty material laid over the tank floor.
 const SUBSTRATE_MATERIAL := {
@@ -50,6 +72,7 @@ var _label_text := ""
 var _fish: Dictionary = {}  # fish id -> Fish3D
 var _decor_key := "-"
 var _body: StaticBody3D
+var _label_hidden := false
 var _solid: StaticBody3D
 
 
@@ -80,6 +103,26 @@ func setup(p_location: String, p_size: Vector3, _p_stand: float, p_label: String
 	_solid = Synty.solid(self, Vector3(0, stand_height * 0.5, 0), Vector3(size.x + 0.1, stand_height, size.z + 0.1))
 	Game.changed.connect(refresh)
 	refresh()
+
+
+## Where decor in `slot` (in `row`) stands, tank-local (used by the tank editor's markers).
+func decor_base(slot: int, row: String) -> Vector3:
+	return Vector3((float(SLOT_X[slot]) - 0.5) * (size.x - 0.25), stand_height + SAND_HEIGHT,
+		float(ROW_Z[row]) * (size.z - 0.15))
+
+
+## Hides the floating name for good (when the tank is shown inside a menu).
+func hide_label() -> void:
+	_label.visible = false
+	_label_hidden = true
+
+
+## The name floats over a tank only while you are near it, so neighbouring tanks don't overlap.
+func _process(_delta: float) -> void:
+	if _label_hidden or _label == null:
+		return
+	var camera := get_viewport().get_camera_3d()
+	_label.visible = camera != null and camera.global_position.distance_to(_label.global_position) < LABEL_RANGE
 
 
 ## Where fish may swim (tank-local).
@@ -156,7 +199,7 @@ func _refresh_decor(tank: Tank) -> void:
 			_add_decor(Game.db.items[tank.slots[slot]], slot, tank.row_of(slot))
 
 
-## The closest Synty model for a decor item, by id first and then by category.
+## The model for a decor item: its own by id, else one for its category (and height).
 func _decor_model(item: Dictionary) -> String:
 	var id := String(item.get("id", ""))
 	if DECOR.has(id):
@@ -164,7 +207,7 @@ func _decor_model(item: Dictionary) -> String:
 	var pool: Array = DECOR.values()
 	match item.get("category", ""):
 		"plant":
-			pool = PLANTS
+			pool = PLANTS.get(item.get("height", "medium"), PLANTS["medium"])
 		"rock":
 			pool = ROCKS
 		"driftwood":

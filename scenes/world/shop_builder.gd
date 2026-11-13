@@ -108,7 +108,7 @@ func _walls() -> void:
 	_wall_run(Vector3(X0, 0, z1), 90.0, ["wall", "wall", "window", "wall", "window", "wall", "window"], true)
 	# The divider between the shop and the back room: tiles once, trim on both faces.
 	_wall_run(Vector3(X0, 0, DIVIDER_Z), 0.0, ["wall", "wall", "door", "wall", "wall"], true)
-	_trim_run(Vector3(x1, 0, DIVIDER_Z), 180.0, BAYS_X)
+	_trim_run(Vector3(x1, 0, DIVIDER_Z), 180.0, BAYS_X, ["wall", "wall", "door", "wall", "wall"])
 
 
 ## One straight wall of tiles. `from` is where its first tile starts (a tile's origin is
@@ -133,16 +133,18 @@ func _wall_run(from: Vector3, yaw_deg: float, kinds: Array, with_trim: bool) -> 
 		else:
 			_tile_solid(tile, Vector3(BAY * 0.5, 1.5, 0.0), Vector3(BAY, 3.0, 0.3))
 	if with_trim:
-		_trim_run(from, yaw_deg, kinds.size())
+		_trim_run(from, yaw_deg, kinds.size(), kinds)
 
 
 ## Skirting along the bottom and a trim band along the top of a wall.
-func _trim_run(from: Vector3, yaw_deg: float, count: int) -> void:
+## No skirting across a doorway (`kinds` as in _wall_run), so you don't see a plank in the gap.
+func _trim_run(from: Vector3, yaw_deg: float, count: int, kinds: Array = []) -> void:
 	var along := Vector3.RIGHT.rotated(Vector3.UP, deg_to_rad(yaw_deg))
 	var wood := Synty.material(TRIM_MATERIAL)
 	for i in count:
 		var at := from + along * (BAY * i)
-		Synty.paint(Synty.put(root, "Buildings/SM_Bld_Trim_Wall_Low_01", at, yaw_deg), wood)
+		if i >= kinds.size() or kinds[i] != "door":
+			Synty.paint(Synty.put(root, "Buildings/SM_Bld_Trim_Wall_Low_01", at, yaw_deg), wood)
 		Synty.paint(Synty.put(root, "Buildings/SM_Bld_Trim_Ceiling_01", at, yaw_deg), wood)
 
 
@@ -206,7 +208,7 @@ func _counter() -> void:
 ## Two buttons on the desk's bottom shelf, on the shopkeeper's side: close the shop for the
 ## day (from 13:00), and close for restock / reopen.
 func _desk_buttons(c: Vector3) -> void:
-	var specs := [["close_shop", -0.45, "Close shop"], ["restock", 0.45, "Restock"]]
+	var specs := [["close_shop", -0.3, "Close shop"], ["restock", 0.3, "Restock"]]
 	for spec in specs:
 		var at := c + Vector3(spec[1], BUTTON_Y, BUTTON_Z)
 		Synty.put(root, "Props/SM_Prop_Toilet_Button_01", at, 0.0, Vector3.ONE * 1.6)

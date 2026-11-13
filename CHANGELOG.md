@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.0] - 2026-11-12
+
+### Changed
+- **Tank decor uses real models:** a pirate treasure chest, a clay vase, a
+  stone archway, a half barrel for the coconut hut, and proper rocks, plants
+  and driftwood (Polygon Pirates and Polygon Dungeon). The fish tank model's
+  own baked-in ornaments are removed, so only the decor you place shows.
+- **Menus have no drawn art:** tank pictures in the Display tank, Back room,
+  Orders and tank editor menus are live views of the 3D tank. Fish in lists
+  are pictures of the 3D fish, staff are portraits of Synty people, and the
+  food buff icons are potion bottles. The drawn shopfront strip is gone (the
+  shop shows the improvements itself).
+- **Menu colours** match the shop: cream panels with wood borders, and
+  wood-orange buttons.
+
+### Fixed
+- No skirting board across the doorways.
+- Tank names only float over tanks near you, so they no longer overlap.
+- The desk buttons' labels no longer get cut off.
+
 ## [0.2.0] - 2026-11-12
 
 ### Added

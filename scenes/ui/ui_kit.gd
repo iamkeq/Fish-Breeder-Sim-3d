@@ -2,6 +2,8 @@ extends RefCounted
 ## Small UI helpers shared by screens: compact buttons, fish previews, text.
 
 const FishSprite := preload("res://scenes/fish_sprite.gd")
+const SyntyIcons := preload("res://scenes/world/synty_icons.gd")
+const Fish3D := preload("res://scenes/world/fish_3d.gd")
 const BUTTON_STATES := ["normal", "hover", "pressed", "hover_pressed", "disabled"]
 
 
@@ -76,19 +78,28 @@ static func move_menu(state: GameState, f: Fish, on_move: Callable, text: String
 	return menu
 
 
-## A small box with a gently animated fish in it (it doesn't swim around).
+## A small box with a picture of the fish in it: the Synty fish model in the fish's colour
+## (rendered once per colour, see synty_icons.gd). Fry are drawn smaller.
 static func fish_preview(fish: Fish, species: Dictionary, box: Vector2 = Vector2(90, 46),
 		fish_scale: float = 0.62) -> Control:
 	var holder := Control.new()
 	holder.custom_minimum_size = box
 	holder.clip_contents = true
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sprite := FishSprite.new()
-	sprite.swims = false
-	sprite.scale = Vector2.ONE * fish_scale
-	sprite.position = Vector2(box.x * 0.6, box.y * 0.5)  # leave room for the tail
-	holder.add_child(sprite)
-	sprite.setup(fish, species, Rect2(sprite.position, Vector2.ONE))
+	var pic := TextureRect.new()
+	pic.texture = SyntyIcons.fish(Fish3D.color_for(fish, species))
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var grown := 1.0 if Game.state.is_adult(fish) else 0.65
+	var share := clampf(fish_scale * 1.35, 0.5, 1.0) * grown
+	pic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var margin := box * (1.0 - share) * 0.5
+	pic.offset_left = margin.x
+	pic.offset_right = -margin.x
+	pic.offset_top = margin.y
+	pic.offset_bottom = -margin.y
+	holder.add_child(pic)
 	return holder
 
 

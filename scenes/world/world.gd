@@ -189,4 +189,4 @@ func _update_desk_buttons() -> void:
 	var state := Game.state
 	_button_labels["restock"].text = "Reopen" if state.restocking else "Restock"
 	var can_close := Game.can_close_shop()
-	_button_labels["close_shop"].text = "Close shop" if can_close else "Close from %s" % GameClock.format_minutes(state.clock.earliest_close_minutes())
+	_button_labels["close_shop"].text = "Close shop" if can_close else "Close (%s)" % GameClock.format_minutes(state.clock.earliest_close_minutes())

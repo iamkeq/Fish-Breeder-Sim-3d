@@ -1,18 +1,17 @@
 extends Control
-## Draws one tank (glass, water, substrate and decor in its slots) and keeps a
-## swimming fish sprite for every fish inside it. Placeholder art only.
+## One tank in a menu: a live view of the real 3D tank (Synty tank model, substrate, decor and
+## swimming fish) in a little 3D world of its own. In the tank editor it also draws the slot
+## markers over the picture and reports clicks on them.
 
-const FishSprite := preload("res://scenes/fish_sprite.gd")
-const FoodIcons := preload("res://scenes/ui/food_icons.gd")
+const Tank3D := preload("res://scenes/world/tank_3d.gd")
 const UI := preload("res://scenes/ui/ui_kit.gd")
 
 ## Back row first so the front row is drawn on top. x is a fraction of the water width.
 const SLOT_X := [0.24, 0.74, 0.1, 0.52, 0.34, 0.88]
 const ROW_LIFT := {"back": 14.0, "mid": 6.0, "front": -2.0}
-const ROW_SCALE := {"back": 0.85, "mid": 0.95, "front": 1.0}
-const HEIGHT_FRACTION := {"short": 0.16, "medium": 0.36, "tall": 0.62}
-## Sprite items: how tall each height class is drawn, as a share of the water.
-const SPRITE_HEIGHT := {"short": 0.2, "medium": 0.34, "tall": 0.6}
+## The tank model's whole height (cabinet and lid) before stretching, and the footprint shown.
+const MODEL_HEIGHT := 1.341
+const SHOWN_FOOTPRINT := Vector3(1.5, 0.8, 0.62)
 
 const GLASS := Color("#d7eef5")
 const FRAME := Color("#5b6b73")
@@ -34,17 +33,71 @@ var highlight_slot: int = -2
 const HIGHLIGHT := Color("#e07a4f")
 const SLOT_SHORT := ["B1", "B2", "M1", "M2", "F1", "F2"]
 
-var _sprites: Dictionary = {}  # fish id -> sprite
 var _pulse := 0.0
-## Clock for animated decor (bubbling chests).
-var _anim_time := 0.0
+var _container: SubViewportContainer
+var _viewport: SubViewport
+var _camera: Camera3D
+var _tank3d: Node3D
 
 
 func _ready() -> void:
 	clip_contents = true
+	_build_view()
 	Game.changed.connect(refresh)
 	resized.connect(_on_resized)
 	refresh()
+
+
+## The little 3D world: sunlit room colours, an upright orthogonal camera and the tank.
+func _build_view() -> void:
+	_container = SubViewportContainer.new()
+	_container.stretch = true
+	_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_container)
+	_viewport = SubViewport.new()
+	_viewport.own_world_3d = true
+	_viewport.transparent_bg = true
+	_container.add_child(_viewport)
+	var env := Environment.new()
+	env.background_mode = Environment.BG_CLEAR_COLOR
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color("#fff1d8")
+	env.ambient_light_energy = 1.0
+	var world_env := WorldEnvironment.new()
+	world_env.environment = env
+	_viewport.add_child(world_env)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-30, 25, 0)
+	sun.light_energy = 0.7
+	_viewport.add_child(sun)
+	_camera = Camera3D.new()
+	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	_viewport.add_child(_camera)
+	_build_tank()
+
+
+func _build_tank() -> void:
+	if _tank3d != null:
+		_tank3d.queue_free()
+	_tank3d = Tank3D.new()
+	_viewport.add_child(_tank3d)
+	_tank3d.setup(location, SHOWN_FOOTPRINT, 0.0, "", "", "", Color.WHITE)
+	_tank3d.hide_label()
+	_frame_camera()
+
+
+## Frame the whole tank (cabinet and all) in the control, keeping it centred.
+func _frame_camera() -> void:
+	if _camera == null or _tank3d == null:
+		return
+	var scale_y: float = _tank3d.stand_height / 0.70
+	var glass_top := MODEL_HEIGHT * scale_y
+	var bottom: float = _tank3d.stand_height - 0.16 * scale_y  # a little cabinet under the glass
+	var aspect := maxf(size.x, 1.0) / maxf(size.y, 1.0)
+	_camera.size = maxf((glass_top - bottom) * 1.06, SHOWN_FOOTPRINT.x * 1.08 / aspect)
+	_camera.position = Vector3(0, (glass_top + bottom) * 0.5, 4.0)
+	_camera.rotation = Vector3.ZERO
 
 
 func tank() -> Tank:
@@ -61,168 +114,39 @@ func swim_rect() -> Rect2:
 
 
 func refresh() -> void:
-	var t := tank()
-	var ids: Array = t.fish_ids if t != null else []
-	if t == null and location == Fish.HOLDING:
-		ids = Game.state.inventory.fish_list(Fish.HOLDING).map(func(f: Fish): return f.id)
-	for fish_id in _sprites.keys():
-		if not fish_id in ids:
-			_sprites[fish_id].queue_free()
-			_sprites.erase(fish_id)
-	for fish_id in ids:
-		if not _sprites.has(fish_id):
-			var f: Fish = Game.state.inventory.get_fish(fish_id)
-			var sprite := FishSprite.new()
-			add_child(sprite)
-			sprite.setup(f, Game.state.species_of(f), swim_rect())
-			_sprites[fish_id] = sprite
-		else:
-			_sprites[fish_id].set_bounds(swim_rect())  # fry may have grown
-		var fed: Fish = Game.state.inventory.get_fish(fish_id)
-		_sprites[fish_id].set_buff(FoodIcons.texture(Game.state.food_buff_icon(fed)))
 	queue_redraw()
 
 
 func _on_resized() -> void:
-	for sprite in _sprites.values():
-		sprite.set_bounds(swim_rect())
+	_frame_camera()
 	queue_redraw()
 
 
 func _draw() -> void:
 	var t := tank()
 	var font := get_theme_default_font()
-	if t == null and location == Fish.HOLDING:
-		_draw_holding()
-		return
-	if t == null:
+	if t == null and location != Fish.HOLDING:
 		var r := Rect2(Vector2(10, 26), size - Vector2(20, 36))
 		draw_rect(r, EMPTY_TEXT, false, 2.0)
 		draw_string(font, Vector2(r.position.x, r.get_center().y), "No tank on display",
 			HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 18, EMPTY_TEXT)
 		return
-
-	var w := water_rect()
-	# Water: a vertical gradient with a bright surface line.
-	draw_polygon(PackedVector2Array([w.position, Vector2(w.end.x, w.position.y), w.end, Vector2(w.position.x, w.end.y)]),
-		PackedColorArray([WATER_TOP, WATER_TOP, WATER_BOTTOM, WATER_BOTTOM]))
-	draw_rect(Rect2(w.position, Vector2(w.size.x, 4)), Color(1, 1, 1, 0.5))
-
-	_draw_substrate(t, w)
-	_draw_air_stone(w)
-	for slot in t.slot_count():
-		if not t.is_slot_empty(slot):
-			_draw_item(Game.db.items[t.slots[slot]], _slot_base(t, slot, w), w.size.y, ROW_SCALE[t.row_of(slot)])
-
-	if show_slot_markers:
-		_draw_slot_markers(t, w, font)
-
-	# Glass frame and lid.
-	draw_rect(w, GLASS.lerp(Color.WHITE, 0.3), false, 3.0)
-	draw_rect(Rect2(w.position.x - 6, w.position.y - 14, w.size.x + 12, 12), FRAME)
-	draw_rect(Rect2(w.position.x - 6, w.end.y, w.size.x + 12, 8), FRAME)
+	if show_slot_markers and t != null:
+		_draw_slot_markers(t, water_rect(), font)
 
 
-## The holding tanks aren't a real tank (no decor): plain water in a frame.
-func _draw_holding() -> void:
-	var w := water_rect()
-	draw_polygon(PackedVector2Array([w.position, Vector2(w.end.x, w.position.y), w.end, Vector2(w.position.x, w.end.y)]),
-		PackedColorArray([WATER_TOP, WATER_TOP, WATER_BOTTOM, WATER_BOTTOM]))
-	draw_rect(Rect2(w.position, Vector2(w.size.x, 4)), Color(1, 1, 1, 0.5))
-	draw_rect(w, GLASS.lerp(Color.WHITE, 0.3), false, 3.0)
-	draw_rect(Rect2(w.position.x - 6, w.position.y - 14, w.size.x + 12, 12), FRAME)
-	draw_rect(Rect2(w.position.x - 6, w.end.y, w.size.x + 12, 8), FRAME)
-
-
+## Where a slot's decor stands on the picture (the 3D position, projected through the camera).
 func _slot_base(t: Tank, slot: int, w: Rect2) -> Vector2:
 	var row: String = t.row_of(slot)
+	if _camera != null and _tank3d != null and _camera.is_inside_tree():
+		return _camera.unproject_position(_tank3d.to_global(_tank3d.decor_base(slot, row)))
 	return Vector2(w.position.x + w.size.x * SLOT_X[slot], w.end.y - SUBSTRATE_HEIGHT * 0.5 - ROW_LIFT[row])
 
 
-func _draw_substrate(t: Tank, w: Rect2) -> void:
-	var substrate := t.substrate
-	if substrate == "" and Fish.is_breeding(location):
-		# Back-room tanks always have a sand floor.
-		substrate = Game.db.economy["breeding_tanks"].get("substrate", "")
-	if substrate == "":
-		return
-	var color := Color(Game.db.items[substrate].get("color", "#d9c9a0"))
-	var top := w.end.y - SUBSTRATE_HEIGHT
-	var points := PackedVector2Array([Vector2(w.position.x, w.end.y)])
-	for i in 9:
-		var x := w.position.x + w.size.x * i / 8.0
-		points.append(Vector2(x, top + sin(i * 1.7) * 3.0))
-	points.append(w.end)
-	draw_colored_polygon(points, color)
-
-
-func _draw_item(item: Dictionary, base: Vector2, water_height: float, scale_: float) -> void:
-	if item.has("sprite"):
-		_draw_item_sprite(item, base, water_height, scale_)
-		return
-	var color := Color(item.get("color", "#999999"))
-	var h: float = water_height * HEIGHT_FRACTION.get(item.get("height", "short"), 0.2) * scale_
-	match item["category"]:
-		"rock":
-			var rx := h * 0.9 + 8.0
-			var dome := PackedVector2Array()
-			for i in 11:
-				var t := PI * i / 10.0
-				var bump := 1.0 + 0.08 * sin(i * 2.3)
-				dome.append(base + Vector2(cos(t) * rx * bump, -sin(t) * h * bump))
-			draw_colored_polygon(dome, color)
-			draw_line(base + Vector2(-rx * 0.4, -h * 0.6), base + Vector2(rx * 0.1, -h * 0.85), color.lightened(0.25), 2.0)
-		"driftwood":
-			draw_line(base, base + Vector2(-h * 0.15, -h), color, 7.0 * scale_)
-			draw_line(base + Vector2(-h * 0.08, -h * 0.5), base + Vector2(-h * 0.5, -h * 0.85), color, 4.0 * scale_)
-			draw_line(base + Vector2(-h * 0.12, -h * 0.75), base + Vector2(h * 0.35, -h * 1.05), color, 4.0 * scale_)
-			draw_line(base + Vector2(-h * 0.3, 0), base + Vector2(h * 0.3, 0), color, 6.0 * scale_)
-		"plant":
-			var blades := 4 if item.get("height") == "short" else 6
-			for i in blades:
-				var spread := (i - (blades - 1) * 0.5) * 6.0 * scale_
-				var tip := base + Vector2(spread * 1.8, -h * (0.75 + 0.25 * sin(i * 1.3)))
-				var mid := base + Vector2(spread * 0.6 + 4.0 * sin(i), -h * 0.5)
-				draw_polyline(PackedVector2Array([base + Vector2(spread * 0.3, 0), mid, tip]),
-					color.lightened(0.08 * (i % 3)), 4.0 * scale_)
-		_:  # decor: a box with a little roof, so it reads as "an ornament"
-			var bw := h * 0.7 + 10.0
-			var body := Rect2(base + Vector2(-bw * 0.5, -h * 0.75), Vector2(bw, h * 0.75))
-			draw_rect(body, color)
-			draw_colored_polygon(PackedVector2Array([
-				body.position, body.position + Vector2(bw, 0), base + Vector2(0, -h)]), color.darkened(0.2))
-			draw_rect(Rect2(base + Vector2(-bw * 0.12, -h * 0.35), Vector2(bw * 0.24, h * 0.35)), color.darkened(0.4))
-
-
 func _process(delta: float) -> void:
-	_anim_time += delta
 	if show_slot_markers:
 		_pulse += delta
 		queue_redraw()
-	elif _has_animated_decor():
-		queue_redraw()
-
-
-## Breeding tanks have a bubbling air stone in the back corner (a fixture,
-## not a decor item). Drawn before the slots so decor sits in front of it.
-func _draw_air_stone(w: Rect2) -> void:
-	var stone: Dictionary = Game.db.economy["breeding_tanks"].get("air_stone", {})
-	if stone.is_empty() or not Fish.is_breeding(location):
-		return
-	var base := Vector2(w.position.x + w.size.x * float(stone.get("x", 0.93)), w.end.y - SUBSTRATE_HEIGHT * 0.5 - ROW_LIFT["back"])
-	_draw_item_sprite(stone, base, w.size.y, ROW_SCALE["back"])
-
-
-func _has_animated_decor() -> bool:
-	var t := tank()
-	if t == null:
-		return false
-	if Fish.is_breeding(location) and Game.db.economy["breeding_tanks"].has("air_stone"):
-		return true
-	for id in t.slots:
-		if id != "" and Game.db.items[id].has("frames"):
-			return true
-	return false
 
 
 ## Where the editor marker for a slot sits (above the item's base).
@@ -267,38 +191,10 @@ func _gui_input(event: InputEvent) -> void:
 			accept_event()
 
 
-## Draws an item's sprite standing on `base`, sized by its height class
-## (aspect ratio kept, never wider than 40% of the tank). Animated items
-## ("frames") are sized by their body; their bubbles rise above it.
-func _draw_item_sprite(item: Dictionary, base: Vector2, water_height: float, scale_: float) -> void:
-	var r: Array = item["sprite"]
-	var body_px: float = r[3]
-	if item.has("frames"):
-		var frames: Array = item["frames"]
-		r = frames[int(_anim_time * float(item.get("fps", 4))) % frames.size()]
-		body_px = float(item["body_height"])
-	var src := Rect2(r[0], r[1], r[2], r[3])
-	var body_h: float = water_height * SPRITE_HEIGHT.get(item.get("height", "short"), 0.2) * scale_
-	var w := body_h * src.size.x / body_px
-	var max_w := size.x * 0.4
-	if w > max_w:
-		body_h *= max_w / w
-		w = max_w
-	var h := body_h * src.size.y / body_px
-	# Sink the bottom slightly into the substrate so it looks planted.
-	var dest := Rect2(base.x - w * 0.5, base.y + body_h * 0.06 - h, w, h)
-	# Keep it inside the glass, even for wide plants in the edge slots.
-	var water := water_rect()
-	dest.position.x = clampf(dest.position.x, water.position.x, maxf(water.position.x, water.end.x - w))
-	draw_texture_rect_region(UI.sheet_texture(item["sheet"]), dest, src)
-
-
 ## Show a different tank (e.g. switching breeding-tank tabs).
 func set_location(new_location: String) -> void:
 	if new_location == location:
 		return
 	location = new_location
-	for sprite in _sprites.values():
-		sprite.queue_free()
-	_sprites.clear()
+	_build_tank()
 	refresh()

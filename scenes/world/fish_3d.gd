@@ -110,12 +110,16 @@ func _update_frame() -> void:
 
 ## The variety's colour (see VARIETY_COLORS), or one made from its name.
 func _body_color() -> Color:
-	var data: Dictionary = species.get("sprites", {})
-	var look := String(fish.get_trait(data.get("trait", "variety")))
+	return color_for(fish, species)
+
+
+static func color_for(p_fish: Fish, p_species: Dictionary) -> Color:
+	var data: Dictionary = p_species.get("sprites", {})
+	var look := String(p_fish.get_trait(data.get("trait", "variety")))
 	if VARIETY_COLORS.has(look):
 		return Color(VARIETY_COLORS[look])
-	var palette: Dictionary = species.get("palette", {})
-	var from_palette := String(palette.get(String(fish.get_trait("body_color")), ""))
+	var palette: Dictionary = p_species.get("palette", {})
+	var from_palette := String(palette.get(String(p_fish.get_trait("body_color")), ""))
 	if from_palette != "":
 		return Color(from_palette)
 	return Color.from_hsv(float(absi(look.hash()) % 360) / 360.0, 0.55, 0.9)

@@ -17,6 +17,8 @@ const NEON_PANEL := Color("#2a2540")
 const CHAIR := Color("#c9784f")
 const BOOKS := [Color("#6a8fc4"), Color("#e0b04f"), Color("#8cc48a")]
 
+## False in the 3D shop, where the improvements are built into the street and the shop.
+static var enabled := true
 var _paint := false
 var _awning := false
 var _neon := false
@@ -35,7 +37,7 @@ func refresh() -> void:
 	_awning = state.has_upgrade("striped_awning")
 	_neon = state.has_upgrade("neon_sign")
 	_corner = state.has_upgrade("reading_corner")
-	visible = _paint or _awning or _neon or _corner
+	visible = enabled and (_paint or _awning or _neon or _corner)
 	queue_redraw()
 
 
