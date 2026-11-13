@@ -1,13 +1,21 @@
 extends Node3D
 ## A shopper from the Synty Polygon Shops character set that walks a list of stops in
-## straight lines (arms hanging, legs and arms swinging as they go). Visual only: the
-## rules live in Game.state.customer. Clicking them is the same as clicking the counter.
+## straight lines, animated with Synty's own clips (see synty_anims.gd): a walk cycle,
+## a standing idle, looking things over at the shelf or tank, checking a watch or tapping
+## a foot while they wait at the counter, and a nod of thanks on the way out. Visual
+## only: the rules live in Game.state.customer. Clicking them is the same as clicking
+## the counter.
 
 const BuildUtil := preload("res://scenes/world/build_util.gd")
 const Interactable := preload("res://scenes/world/interactable.gd")
 const Synty := preload("res://scenes/world/synty.gd")
+const SyntyAnims := preload("res://scenes/world/synty_anims.gd")
 
-const WALK_SPEED := 2.0
+const WALK_SPEED := 1.35
+## Seconds between fidgets (checking a watch, tapping a foot) while waiting at the counter.
+const FIDGET_EVERY := Vector2(5.0, 10.0)
+## How long the nod of thanks plays before they turn for the door.
+const THANKS_TIME := 1.1
 const PEOPLE := [
 	"Characters/Characters/SM_Chr_Shopper_Female_01", "Characters/Characters/SM_Chr_Shopper_Male_01",
 	"Characters/Characters/SM_Chr_Gym_Female_01", "Characters/Characters/SM_Chr_Gym_Male_01",
@@ -34,6 +42,10 @@ var _model: Node3D
 var _skeleton: Skeleton3D
 var _rest_global := {}  # bone name -> Basis of the bone in the skeleton's rest pose
 var _stride := 0.0  # 0 standing, 1 walking
+var _anim: AnimationPlayer
+var _clip := ""
+var _fidget := 0.0
+var _rng := RandomNumberGenerator.new()
 
 
 func setup(p_name: String, seed_value: int) -> void:
@@ -43,15 +55,24 @@ func setup(p_name: String, seed_value: int) -> void:
 	_model = Node3D.new()
 	_model.rotation.y = PI  # the models face +Z; people here walk towards -Z
 	add_child(_model)
-	var person := Synty.make(PEOPLE[rng.randi() % PEOPLE.size()])
+	var who: String = PEOPLE[rng.randi() % PEOPLE.size()]
+	var person := Synty.make(who)
+	_rng.seed = seed_value + 7
 	_model.add_child(person)
 	_skeleton = person.find_child("GeneralSkeleton", true, false)
 	if _skeleton != null:
 		for part in _skeleton.get_children():  # the prefab leaves its skinned meshes unbound
 			if part is MeshInstance3D and (part as MeshInstance3D).skin != null:
 				(part as MeshInstance3D).skeleton = NodePath("..")
-		_cache_rest()
-		_pose(0.0)
+		_anim = SyntyAnims.attach(_skeleton, who.contains("Female"))
+		if _anim.has_animation("walk"):
+			_play("idle")
+		else:  # no animation files: fall back to the hand-made swing
+			_anim.queue_free()
+			_anim = null
+			_cache_rest()
+			_pose(0.0)
+		_fidget = _rng.randf_range(FIDGET_EVERY.x, FIDGET_EVERY.y)
 	BuildUtil.label(self, customer_name, Vector3(0, 2.15, 0), 0.0035)
 	var body_click := Interactable.new()
 	body_click.setup("customer", "Click: Customer", Vector3(0, 0.95, 0), Vector3(0.6, 1.9, 0.6), "", 2)
@@ -102,6 +123,9 @@ func go(stops: Array) -> void:
 func leave(door: Vector3) -> void:
 	leaving = true
 	go([{"pos": door, "stop": "door", "pause": 0.0}])
+	if _anim != null:  # a nod of thanks first
+		_play("thanks")
+		_pause = THANKS_TIME
 
 
 ## True while they have somewhere to go.
@@ -114,6 +138,7 @@ func _process(delta: float) -> void:
 		_pause = maxf(_pause - delta, 0.0)
 		_stride = move_toward(_stride, 0.0, delta * 4.0)
 		_animate()
+		_idle(delta)
 		if _route.is_empty():
 			return
 		if _pause > 0.0:
@@ -131,6 +156,9 @@ func _process(delta: float) -> void:
 			_face(step["face"], true)
 		_model.position.y = 0.0
 		_stride = 0.0
+		if _anim != null:
+			# Look things over at the shelf or the tank; otherwise just stand.
+			_play("inspect" if _pause > 0.0 and step["stop"] in ["shelf", "display"] else "idle")
 		arrived.emit(step["stop"])
 		if _route.is_empty():
 			route_done.emit()
@@ -151,8 +179,34 @@ func _face(dir: Vector3, snap: bool = false) -> void:
 	rotation.y = target if snap else lerp_angle(rotation.y, target, 0.25)
 
 
+## Standing still: back to the idle once a one-off clip ends, and now and then a fidget
+## while waiting at the end of the route (the counter).
+func _idle(delta: float) -> void:
+	if _anim == null:
+		return
+	if _clip != "idle" and _clip != "walk" and not _anim.is_playing():
+		_play("idle")
+	if _route.is_empty() and not leaving:
+		_fidget -= delta
+		if _fidget <= 0.0:
+			_fidget = _rng.randf_range(FIDGET_EVERY.x, FIDGET_EVERY.y)
+			if _clip == "idle":
+				_play("check_watch" if _rng.randf() < 0.5 else "foot_tap")
+
+
+func _play(clip: String) -> void:
+	if _anim == null or clip == _clip or not _anim.has_animation(clip):
+		return
+	_clip = clip
+	_anim.play(clip, 0.25)
+
+
 func _animate() -> void:
 	if _skeleton == null:
+		return
+	if _anim != null:
+		if _stride > 0.5:
+			_play("walk")
 		return
 	_pose(sin(_bob) * SWING * _stride)
 	_model.position.y = absf(sin(_bob)) * 0.02 * _stride

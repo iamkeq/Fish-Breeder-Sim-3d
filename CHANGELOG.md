@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0] - 2026-11-13
+
+### Changed
+- **Customers move with Synty's own animations** (the Base Locomotion and
+  Idles packs) in place of the hand-made arm and leg swing:
+  - a proper walk cycle, at a calmer walking pace;
+  - a standing idle;
+  - looking things over when they stop at the shelf or the display tank;
+  - checking their watch or tapping a foot while they wait at the counter;
+  - a nod of thanks before they turn for the door.
+
+  Men and women use the masculine and feminine versions of each clip.
+
 ## [0.3.2] - 2026-11-13
 
 ### Added

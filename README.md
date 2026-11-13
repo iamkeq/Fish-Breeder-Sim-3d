@@ -32,7 +32,9 @@ copy the Godot exports of the Polygon Shops and Polygon City packs there (and `P
 and `Textures/PolygonOffice_Texture_01_A.png` from the Office source files), then run
 `godot --headless --path . --import`. The tank decor and menu icons also use the
 Polygon Pirates and Polygon Dungeon Godot exports, which go in `assets/PolygonPirates/`
-and `assets/PolygonDungeon/` (their prefabs expect those paths). Nothing in the shop or the menus is drawn in code or
+and `assets/PolygonDungeon/` (their prefabs expect those paths). Customer animations are
+FBX clips from the ANIMATION Base Locomotion and Idles source files, copied into
+`assets/Synty/Animations/` (see `scenes/world/synty_anims.gd` for the file names). Nothing in the shop or the menus is drawn in code or
 taken from the old 2D sprite sheets.
 
 ## Development
