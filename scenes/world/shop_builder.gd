@@ -27,6 +27,9 @@ const COUNTER_CENTRE := Vector3(-0.8, 0.0, -1.6)
 const COUNTER_SIZE := Vector3(3.0, 1.0, 1.2)
 ## The desk buttons sit on the bottom shelf of the recess on the shopkeeper side (+Z).
 const BUTTON_Y := 0.5
+## The open middle of the desk on the shopkeeper's side (where the buttons are).
+const RECESS_WIDTH := 1.1
+const RECESS_DEPTH := 0.45
 const BUTTON_Z := 0.3
 const DISPLAY_POS := Vector3(3.6, 0.0, -2.8)
 const DISPLAY2_POS := Vector3(3.6, 0.0, -0.4)
@@ -190,10 +193,20 @@ func _lights() -> void:
 func _counter() -> void:
 	var c := COUNTER_CENTRE
 	Synty.put(root, "Props/SM_Prop_Shop_Desk_01", c, 180.0)
-	Synty.solid(root, c + Vector3(0, 0.5, 0), COUNTER_SIZE)
-	var body := Interactable.new()
-	body.setup("counter", "Click: Counter", c + Vector3(0, 0.55, 0), COUNTER_SIZE + Vector3(0.1, 0.1, 0.0))
-	root.add_child(body)
+	# Three boxes, leaving the recess on the shopkeeper's side open so the crosshair can
+	# reach the buttons on its bottom shelf: the two ends full depth, the middle shallower.
+	var side_w := (COUNTER_SIZE.x - RECESS_WIDTH) * 0.5
+	var back_d := COUNTER_SIZE.z - RECESS_DEPTH
+	var boxes := [
+		[Vector3(-(RECESS_WIDTH + side_w) * 0.5, 0, 0), Vector3(side_w, COUNTER_SIZE.y, COUNTER_SIZE.z)],
+		[Vector3((RECESS_WIDTH + side_w) * 0.5, 0, 0), Vector3(side_w, COUNTER_SIZE.y, COUNTER_SIZE.z)],
+		[Vector3(0, 0, -RECESS_DEPTH * 0.5), Vector3(RECESS_WIDTH, COUNTER_SIZE.y, back_d)],
+	]
+	for box in boxes:
+		Synty.solid(root, c + box[0] + Vector3(0, 0.5, 0), box[1])
+		var body := Interactable.new()
+		body.setup("counter", "Click: Counter", c + box[0] + Vector3(0, 0.55, 0), box[1] + Vector3(0.1, 0.1, 0.0))
+		root.add_child(body)
 	# The till, a tip jar and a laptop on top.
 	Synty.put(root, "Props/SM_Prop_Shop_Cash_Register_02", c + Vector3(0.95, 1.01, 0.05), 0.0)
 	Synty.put(root, "Props/SM_Prop_Cafe_Tip_Jar_01", c + Vector3(-0.2, 1.01, -0.1))
@@ -213,7 +226,9 @@ func _desk_buttons(c: Vector3) -> void:
 		var at := c + Vector3(spec[1], BUTTON_Y, BUTTON_Z)
 		Synty.put(root, "Props/SM_Prop_Toilet_Button_01", at, 0.0, Vector3.ONE * 1.6)
 		var body := Interactable.new()
-		body.setup(spec[0], "", at, Vector3(0.34, 0.24, 0.2))
+		# The click box reaches out past the desk's front edge, so the crosshair finds the
+		# button before the counter (whose box covers the whole desk).
+		body.setup(spec[0], "", at + Vector3(0, 0.02, 0.22), Vector3(0.34, 0.28, 0.66))
 		root.add_child(body)
 		button_labels[spec[0]] = BuildUtil.label(root, spec[2], at + Vector3(0, 0.2, 0.16), 0.0016, false)
 
@@ -292,12 +307,15 @@ func _back_room() -> void:
 	BuildUtil.label(root, "Desk", p + Vector3(0, 1.8, 0), 0.004)
 
 
+const SIGN_Y := 2.38
+
 func _signs() -> void:
 	# Facing +Z, readable from the shop side of the front wall.
-	BuildUtil.label(root, "Fig Tree Fish Breeder", Vector3(0, 2.68, Z0 + 0.16), 0.005, false)
-	var back_sign := BuildUtil.label(root, "Back room", Vector3(0, 2.68, DIVIDER_Z - 0.16), 0.005, false)
+	# Under the ceiling trim and clear of the wall, so the letters don't cut into either.
+	BuildUtil.label(root, "Fig Tree Fish Breeder", Vector3(0, SIGN_Y, Z0 + 0.3), 0.0042, false)
+	var back_sign := BuildUtil.label(root, "Back room", Vector3(0, SIGN_Y, DIVIDER_Z - 0.3), 0.0042, false)
 	back_sign.rotation.y = PI  # faces the shop
-	BuildUtil.label(root, "Shop floor", Vector3(0, 2.68, DIVIDER_Z + 0.16), 0.005, false)
+	BuildUtil.label(root, "Shop floor", Vector3(0, SIGN_Y, DIVIDER_Z + 0.3), 0.0042, false)
 
 
 ## The street outside, from Polygon City: a pavement along the shop front, a two-lane
@@ -331,11 +349,12 @@ func _outside() -> void:
 		var mid: float = float(side) * (6.25 + STREET_HALF) * 0.5
 		Synty.solid(root, Vector3(mid, wall_h * 0.5, Z0 - 0.5), Vector3(STREET_HALF - 6.25, wall_h, 1.0))
 	_neighbours(c)
+	_behind(c)
 	_across_the_street(c)
 	_street_furniture(c)
 	_skyline(c)
 	# The shop's name over the door, readable from the street.
-	var name_sign := BuildUtil.label(root, "Fig Tree Fish Breeder", Vector3(0, 2.82, Z0 - 0.2), 0.005, false)
+	var name_sign := BuildUtil.label(root, "Fig Tree Fish Breeder", Vector3(0, 2.8, Z0 - 0.45), 0.0045, false)
 	name_sign.rotation.y = PI
 
 
@@ -353,6 +372,30 @@ func _neighbours(c: String) -> void:
 		var wide := 10.0 if name == "Shop_03" else 5.0
 		Synty.put(root, c + "Buildings/SM_Bld_" + name, Vector3(edge, 0.0, Z0 + 0.5), 180.0)
 		edge -= wide
+
+
+## Behind and beside the shop: paved alleys, the backs of taller buildings across them and
+## a few bins, so the side and back windows look out on the town too.
+func _behind(c: String) -> void:
+	for ix in range(-6, 6):
+		for iz in range(0, 7):
+			Synty.put(root, c + "Environments/SM_Env_Road_Bare_01", Vector3(ix * 5.0, -0.01, 5.0 + iz * 5.0))
+	# Either side of the shop, across a 2.5 m alley.
+	Synty.put(root, c + "Buildings/SM_Bld_OfficeSquare_02", Vector3(8.75, 0.0, 16.0))
+	Synty.put(root, c + "Buildings/SM_Bld_OfficeOld_Small_01", Vector3(-20.0, 0.0, 12.0), 90.0)
+	Synty.put(root, c + "Buildings/SM_Bld_Apartment_Stack_01", Vector3(-8.75, 0.0, 6.0), 90.0)
+	# Behind the back room, across the back alley.
+	Synty.put(root, c + "Buildings/SM_Bld_OfficeOld_Large_01", Vector3(8.0, 0.0, 18.5), 180.0)
+	Synty.put(root, c + "Buildings/SM_Bld_OfficeSquare_01", Vector3(-8.0, 0.0, 18.5), 180.0)
+	Synty.put(root, c + "Buildings/SM_Bld_OfficeSquare_02", Vector3(24.0, 0.0, 18.5), 180.0)
+	# Alley clutter.
+	Synty.put(root, c + "Props/SM_Prop_Skip_01", Vector3(3.5, 0.0, 15.0))
+	Synty.put(root, c + "Props/SM_Prop_TrashBag_01", Vector3(1.6, 0.0, 14.6))
+	Synty.put(root, c + "Props/SM_Prop_TrashBag_02", Vector3(1.0, 0.0, 15.2))
+	Synty.put(root, c + "Props/SM_Prop_Pallet_01", Vector3(-3.5, 0.0, 14.5), 20.0)
+	Synty.put(root, c + "Props/SM_Prop_CardboardBox_01", Vector3(-4.6, 0.0, 14.2))
+	Synty.put(root, c + "Props/SM_Prop_Aircon_01", Vector3(7.6, 0.0, 6.0), -90.0)
+	Synty.put(root, c + "Props/SM_Prop_Trashbin_02", Vector3(-7.4, 0.0, 9.0))
 
 
 ## Shopfronts opposite (facing us) with taller buildings behind them.

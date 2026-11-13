@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.1] - 2026-11-13
+
+### Changed
+- **Guppies use the sprite art again**, both in menu lists and swimming in
+  the 3D tanks (flat sprite cards, as in the first 3D version). Species with
+  no sprite sheet still show the Synty fish in their colour.
+- **The town carries on behind the shop:** paved alleys behind and beside
+  it, office buildings across them, and bins, pallets and a skip in the back
+  alley. No more empty grass field out of the back and side windows.
+
+### Fixed
+- The Restock / Reopen and Close shop buttons on the front desk now work.
+  The counter's click box covered them, so clicks opened the counter instead.
+- The shop name above the front door, and the Back room / Shop floor signs,
+  no longer cut into the wall and ceiling trim.
+
 ## [0.3.0] - 2026-11-12
 
 ### Changed

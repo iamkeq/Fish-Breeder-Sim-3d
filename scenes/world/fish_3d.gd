@@ -1,13 +1,19 @@
 extends Node3D
-## One fish swimming slowly back and forth inside a 3D tank: the Synty fish model,
-## coloured by its variety. Fry are smaller. Position is in the tank's local space,
-## kept inside `bounds`.
+## One fish swimming slowly back and forth inside a 3D tank: a billboard
+## Sprite3D cut from the species' sprite sheet (see fish_art.gd), the same guppy
+## art as the menus. Species without a sprite sheet use the Synty fish model in
+## their colour. Fry are smaller. Position is in the tank's local space, kept
+## inside `bounds`.
 
+const FishArt := preload("res://scenes/world/fish_art.gd")
+const UI := preload("res://scenes/ui/ui_kit.gd")
 const Synty := preload("res://scenes/world/synty.gd")
 const BuildUtil := preload("res://scenes/world/build_util.gd")
-## Size of an adult fish relative to the model (a guppy is about 20 cm; the model is 17 cm).
-const ADULT_SCALE := 1.15
+## Metres per sprite pixel (a guppy is about 20 cm long).
+const PIXEL_SIZE := 0.003
 const SPEED_RANGE := Vector2(0.07, 0.17)
+## Synty fish model size for species without a sprite sheet (the model is 17 cm).
+const MODEL_SCALE := 1.15
 ## Body colour per guppy variety. Anything not listed gets a colour made from its name.
 const VARIETY_COLORS := {
 	"normal": "#b9b2a0", "red": "#e0453a", "blue": "#3b6fd1", "yellow": "#f2cf3d", "black": "#2b2b30",
@@ -19,18 +25,19 @@ const VARIETY_COLORS := {
 	"midnight": "#23265c", "opal": "#bfe3d6", "tiger": "#e89a2f",
 }
 
+
 var fish: Fish
 var species: Dictionary
 var bounds := AABB(Vector3(-0.4, 0.1, -0.2), Vector3(0.8, 0.4, 0.4))
 
-var _model: Node3D
+var _sprite: Sprite3D
+var _fallback: Node3D
 ## A little symbol over the fish while a food buff is on it (see set_buff).
 var _buff: Label3D
 var _target := Vector3.ZERO
 var _speed := 0.1
 var _rest := 0.0
 var _facing_right := true
-var _yaw := -PI * 0.5
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
 
@@ -41,8 +48,14 @@ func setup(p_fish: Fish, p_species: Dictionary, p_bounds: AABB) -> void:
 	bounds = p_bounds
 	_rng.seed = fish.id * 7919 + 13
 	_time = _rng.randf() * 10.0
-	_model = Synty.fish(_body_color())
-	add_child(_model)
+	_sprite = Sprite3D.new()
+	_sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	_sprite.shaded = false
+	_sprite.double_sided = true
+	_sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+	_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	_sprite.region_enabled = true
+	add_child(_sprite)
 	position = _random_point()
 	_pick_target()
 	_update_frame()
@@ -99,20 +112,31 @@ func _process(delta: float) -> void:
 
 
 func _update_frame() -> void:
-	var growth := lerpf(0.4, 1.0, clampf(float(fish.age_days) / float(species.get("days_to_adult", 1)), 0.0, 1.0))
-	_model.scale = Vector3.ONE * ADULT_SCALE * growth
+	var art := FishArt.frame(fish, species, _facing_right, _rest <= 0.0, _time)
+	var growth := FishArt.growth(fish, species)
+	if art.is_empty():
+		_show_fallback(growth)
+		return
+	var rect: Rect2 = art["rect"]
+	_sprite.texture = UI.sheet_texture(art["sheet"])
+	_sprite.region_rect = rect
+	_sprite.flip_h = art["flip"]
+	_sprite.pixel_size = PIXEL_SIZE * float(art["scale"]) * growth
+	_sprite.modulate = art["tint"]
+	_sprite.modulate.a = lerpf(0.8, 1.0, growth)
+
+
+## Species without a sprite sheet: the Synty fish model in the fish's colour.
+func _show_fallback(growth: float) -> void:
+	if _fallback == null:
+		_fallback = Synty.fish(color_for(fish, species))
+		add_child(_fallback)
+	_fallback.scale = Vector3.ONE * MODEL_SCALE * growth
 	# The model's nose points to -Z: -90 degrees faces right (+X), +90 faces left.
-	_yaw = lerp_angle(_yaw, -PI * 0.5 if _facing_right else PI * 0.5, 0.12)
-	_model.rotation.y = _yaw
-	# A gentle wiggle while swimming.
-	_model.rotation.z = sin(_time * 9.0) * 0.06 if _rest <= 0.0 else 0.0
+	_fallback.rotation.y = lerp_angle(_fallback.rotation.y, -PI * 0.5 if _facing_right else PI * 0.5, 0.12)
 
 
 ## The variety's colour (see VARIETY_COLORS), or one made from its name.
-func _body_color() -> Color:
-	return color_for(fish, species)
-
-
 static func color_for(p_fish: Fish, p_species: Dictionary) -> Color:
 	var data: Dictionary = p_species.get("sprites", {})
 	var look := String(p_fish.get_trait(data.get("trait", "variety")))
