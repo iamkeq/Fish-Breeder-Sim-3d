@@ -13,6 +13,7 @@ const ShelfStock := preload("res://scenes/world/shelf_stock.gd")
 const Interactable := preload("res://scenes/world/interactable.gd")
 const BuildUtil := preload("res://scenes/world/build_util.gd")
 const Synty := preload("res://scenes/world/synty.gd")
+const ShopFront3D := preload("res://scenes/world/shop_front_3d.gd")
 
 const BAY := 2.5  # every wall, floor and ceiling tile is 2.5 m
 const X0 := -6.25
@@ -24,7 +25,11 @@ const DIVIDER_Z := 2.5
 
 const COUNTER_CENTRE := Vector3(-0.8, 0.0, -1.6)
 const COUNTER_SIZE := Vector3(3.0, 1.0, 1.2)
+## The desk buttons sit on the bottom shelf of the recess on the shopkeeper side (+Z).
+const BUTTON_Y := 0.5
+const BUTTON_Z := 0.3
 const DISPLAY_POS := Vector3(3.6, 0.0, -2.8)
+const DISPLAY2_POS := Vector3(3.6, 0.0, -0.4)
 const SHELF_POS := Vector3(-5.6, 0.0, -2.5)
 const DESK_POS := Vector3(3.0, 0.0, 11.5)
 
@@ -37,6 +42,8 @@ const RUG_MATERIAL := "Building_Mats/PolygonShops_Mat_Carpet_01_mat"
 const PAINT := Color(1.0, 0.9, 0.74)
 
 var root: Node3D
+## Labels over the desk buttons, whose text the world keeps up to date.
+var button_labels := {}
 
 
 ## Builds everything under `parent` and returns {"anchors": {...}, "display_tank": Tank3D}.
@@ -51,6 +58,8 @@ func build(parent: Node3D) -> Dictionary:
 	_shelf()
 	_decor()
 	var display := _display_tank()
+	var display2 := _display_tank_2()
+	root.add_child(ShopFront3D.new())
 	_back_room()
 	_signs()
 	_outside()
@@ -59,11 +68,14 @@ func build(parent: Node3D) -> Dictionary:
 			"door": Vector3(0, 0, -6.2),
 			"shelf": Vector3(-4.7, 0, SHELF_POS.z),
 			"display": Vector3(DISPLAY_POS.x, 0, -4.0),
+			"display2": Vector3(DISPLAY2_POS.x, 0, -1.6),
 			"counter": Vector3(-0.6, 0, -2.9),
 			"start": Vector3(-0.6, 0.05, -0.4),
 			"back_room": Vector3(0, 0.05, 3.6),
 		},
 		"display_tank": display,
+		"display_tank_2": display2,
+		"button_labels": button_labels,
 	}
 
 
@@ -181,9 +193,27 @@ func _counter() -> void:
 	body.setup("counter", "Click: Counter", c + Vector3(0, 0.55, 0), COUNTER_SIZE + Vector3(0.1, 0.1, 0.0))
 	root.add_child(body)
 	# The till, a tip jar and a laptop on top.
-	Synty.put(root, "Props/SM_Prop_Shop_Cash_Register_02", c + Vector3(0.95, 1.01, 0.05), 180.0)
+	Synty.put(root, "Props/SM_Prop_Shop_Cash_Register_02", c + Vector3(0.95, 1.01, 0.05), 0.0)
 	Synty.put(root, "Props/SM_Prop_Cafe_Tip_Jar_01", c + Vector3(-0.2, 1.01, -0.1))
 	Synty.put(root, "Props/SM_Prop_Computer_Laptop_01", c + Vector3(-0.9, 1.01, 0.2), 10.0)
+	# The laptop opens the Market.
+	var laptop := Interactable.new()
+	laptop.setup("market", "Click: Market (order stock)", c + Vector3(-0.9, 1.2, 0.2), Vector3(0.6, 0.4, 0.55))
+	root.add_child(laptop)
+	_desk_buttons(c)
+
+
+## Two buttons on the desk's bottom shelf, on the shopkeeper's side: close the shop for the
+## day (from 13:00), and close for restock / reopen.
+func _desk_buttons(c: Vector3) -> void:
+	var specs := [["close_shop", -0.45, "Close shop"], ["restock", 0.45, "Restock"]]
+	for spec in specs:
+		var at := c + Vector3(spec[1], BUTTON_Y, BUTTON_Z)
+		Synty.put(root, "Props/SM_Prop_Toilet_Button_01", at, 0.0, Vector3.ONE * 1.6)
+		var body := Interactable.new()
+		body.setup(spec[0], "", at, Vector3(0.34, 0.24, 0.2))
+		root.add_child(body)
+		button_labels[spec[0]] = BuildUtil.label(root, spec[2], at + Vector3(0, 0.2, 0.16), 0.0016, false)
 
 
 func _shelf() -> void:
@@ -235,6 +265,15 @@ func _display_tank() -> Node3D:
 	return tank
 
 
+func _display_tank_2() -> Node3D:
+	var tank := Tank3D.new()
+	tank.position = DISPLAY2_POS
+	root.add_child(tank)
+	tank.setup(Fish.DISPLAY2, Vector3(2.0, 0.8, 0.8), 0.7, "Display tank 2", "display_tank",
+		"Click: Display tank 2", Color.WHITE)
+	return tank
+
+
 func _back_room() -> void:
 	var tanks := BackRoom3D.new()
 	root.add_child(tanks)
@@ -259,11 +298,107 @@ func _signs() -> void:
 	BuildUtil.label(root, "Shop floor", Vector3(0, 2.68, DIVIDER_Z + 0.16), 0.005, false)
 
 
-## The street outside: pavement, a couple of trees.
+## The street outside, from Polygon City: a pavement along the shop front, a two-lane
+## road, the pavement and shopfronts opposite, neighbouring shops either side, trees,
+## lamps, parked cars and a skyline. The ground is solid all the way across, and
+## invisible walls keep you on the pavement, the road and the far pavement.
+const STREET_HALF := 35.0  # the street runs x -35..35
+const FAR_WALL_Z := -25.0  # the far pavement's edge, in front of the shops opposite
+
 func _outside() -> void:
-	for ix in range(-6, 7):
-		for iz in 2:
-			Synty.put(root, "Environments/SM_Env_Sidewalk_01", Vector3(ix * BAY, 0.0, Z0 - (iz + 1) * BAY))
-	Synty.put(root, "Environments/SM_Env_Ground_01", Vector3(-30, -0.05, Z0 - 5.0), 0.0, Vector3(6.0, 1, 1.0))
-	Synty.put(root, "Environments/SM_Env_Tree_01", Vector3(-4.5, 0.0, Z0 - 4.5))
-	Synty.put(root, "Environments/SM_Env_Tree_02", Vector3(5.5, 0.0, Z0 - 4.5))
+	var c := "City/"
+	# Ground: solid under everything, grass beyond the tarmac.
+	Synty.solid(root, Vector3(0, -0.5, -27.5), Vector3(STREET_HALF * 2.0, 1.0, 45.0))
+	var grass := Synty.put(root, c + "Environments/SM_Env_Grass_01", Vector3(100, -0.16, 100), 0.0, Vector3(40, 1, 40))
+	grass.name = "Grass"
+	# Pavement (z -10..-5), road (z -20..-10) and the far pavement (z -25..-20), in 5 m tiles.
+	for ix in range(-7, 7):
+		var x := ix * 5.0
+		Synty.put(root, c + "Environments/SM_Env_Sidewalk_01", Vector3(x, 0.0, -5.0))
+		Synty.put(root, c + "Environments/SM_Env_Sidewalk_01", Vector3(x, 0.0, -20.0))
+		Synty.put(root, c + "Environments/SM_Env_Road_Lines_01", Vector3(x, 0.0, -10.0))
+		Synty.put(root, c + "Environments/SM_Env_Road_Lines_01", Vector3(x, 0.0, -15.0), 180.0)
+		Synty.put(root, c + "Environments/SM_Env_Sidewalk_Straight_01", Vector3(x, 0.0, -10.0))
+		Synty.put(root, c + "Environments/SM_Env_Sidewalk_Straight_01", Vector3(x, 0.0, -20.0), 180.0)
+	# Invisible walls.
+	var wall_h := 8.0
+	Synty.solid(root, Vector3(0, wall_h * 0.5, FAR_WALL_Z - 0.5), Vector3(STREET_HALF * 2.0, wall_h, 1.0))
+	for side in [-1.0, 1.0]:
+		Synty.solid(root, Vector3(float(side) * (STREET_HALF + 0.5), wall_h * 0.5, -15.0), Vector3(1.0, wall_h, 20.0))
+		# the neighbours' fronts, either side of our own front wall
+		var mid: float = float(side) * (6.25 + STREET_HALF) * 0.5
+		Synty.solid(root, Vector3(mid, wall_h * 0.5, Z0 - 0.5), Vector3(STREET_HALF - 6.25, wall_h, 1.0))
+	_neighbours(c)
+	_across_the_street(c)
+	_street_furniture(c)
+	_skyline(c)
+	# The shop's name over the door, readable from the street.
+	var name_sign := BuildUtil.label(root, "Fig Tree Fish Breeder", Vector3(0, 2.82, Z0 - 0.2), 0.005, false)
+	name_sign.rotation.y = PI
+
+
+## Shops either side of ours, fronts flush with our front wall (turned to face the road).
+func _neighbours(c: String) -> void:
+	var right := ["Shop_01", "Shop_03", "Shop_05", "Shop_02"]
+	var left := ["Shop_04", "Shop_02", "Shop_06", "Shop_01", "Shop_05"]
+	var edge := 6.25
+	for name in right:
+		var wide := 10.0 if name == "Shop_03" else 5.0
+		Synty.put(root, c + "Buildings/SM_Bld_" + name, Vector3(edge + wide, 0.0, Z0 + 0.5), 180.0)
+		edge += wide
+	edge = -6.25
+	for name in left:
+		var wide := 10.0 if name == "Shop_03" else 5.0
+		Synty.put(root, c + "Buildings/SM_Bld_" + name, Vector3(edge, 0.0, Z0 + 0.5), 180.0)
+		edge -= wide
+
+
+## Shopfronts opposite (facing us) with taller buildings behind them.
+func _across_the_street(c: String) -> void:
+	var row := ["Shop_03", "Shop_01", "Shop_05", "Shop_02", "Shop_04", "Shop_06", "Shop_03", "Shop_05", "Shop_01", "Shop_02", "Shop_06", "Shop_04"]
+	var x := -STREET_HALF
+	for name in row:
+		var wide := 10.0 if name == "Shop_03" else 5.0
+		if x + wide > STREET_HALF + 0.1:
+			break
+		Synty.put(root, c + "Buildings/SM_Bld_" + name, Vector3(x, 0.0, -25.0))
+		x += wide
+	var towers := [["OfficeSquare_01", -30.0], ["OfficeOld_Small_01", -8.0], ["OfficeSquare_01", 12.0], ["OfficeOld_Large_01", 28.0]]
+	for t in towers:
+		Synty.put(root, c + "Buildings/SM_Bld_" + t[0], Vector3(t[1], 0.0, -34.0))
+
+
+## Trees, lamps, benches, bins, parked cars and so on, along the pavements and the road.
+func _street_furniture(c: String) -> void:
+	for x in [-16.0, -9.0, 9.0, 16.0, 24.0, -24.0]:
+		Synty.put(root, c + "Environments/SM_Env_Tree_01" if int(x) % 2 == 0 else c + "Environments/SM_Env_Tree_03",
+			Vector3(x, 0.0, -9.0))
+	for x in [-20.0, -4.0, 8.0, 22.0]:
+		Synty.put(root, c + "Environments/SM_Env_Tree_03", Vector3(x, 0.0, -21.2))
+	# Near pavement: bench, bins, hydrant, mailbox, planters either side of the door, meters.
+	Synty.put(root, c + "Props/SM_Prop_ParkBench_01", Vector3(4.0, 0.0, -6.0), 180.0)
+	Synty.put(root, c + "Props/SM_Prop_Trashbin_01", Vector3(-3.5, 0.0, -9.4))
+	Synty.put(root, c + "Props/SM_Prop_Hydrant_01", Vector3(12.0, 0.0, -9.4))
+	Synty.put(root, c + "Props/SM_Prop_Mailbox_01", Vector3(-12.0, 0.0, -9.4))
+	Synty.put(root, c + "Props/SM_Prop_PotPlant_01", Vector3(-2.0, 0.0, -5.6))
+	Synty.put(root, c + "Props/SM_Prop_PotPlant_02", Vector3(2.0, 0.0, -5.6))
+	for x in [-6.0, 6.0, 18.0, -18.0]:
+		Synty.put(root, c + "Props/SM_Prop_ParkingMeter_01", Vector3(x, 0.0, -9.5))
+	Synty.put(root, c + "Props/SM_Prop_BusStop_01", Vector3(-26.0, 0.0, -8.4))
+	# Lamps along the kerb.
+	for x in [-20.0, 0.0, 20.0]:
+		Synty.put(root, c + "Props/SM_Prop_LightPole_Base_01", Vector3(x, 0.0, -9.6))
+	# Far pavement.
+	Synty.put(root, c + "Props/SM_Prop_ParkBench_01", Vector3(-12.0, 0.0, -24.0))
+	Synty.put(root, c + "Props/SM_Prop_Trashbin_02", Vector3(6.0, 0.0, -24.0))
+	Synty.put(root, c + "Props/SM_Prop_Planter_01", Vector3(16.0, 0.0, -24.0))
+	# Cars in the lanes (they stay put).
+	var cars := [["Sedan_01", -14.0, -12.5, 90.0], ["Taxi_01", 9.0, -12.5, 90.0], ["Small_01", -4.0, -17.5, -90.0],
+		["Van_01", 14.0, -17.5, -90.0], ["Sedan_01", -26.0, -17.5, -90.0]]
+	for car in cars:
+		Synty.put(root, c + "Vehicles/SM_Veh_Car_" + car[0], Vector3(car[1], 0.0, car[2]), car[3])
+
+
+## The distant skyline and the sky dome.
+func _skyline(c: String) -> void:
+	Synty.put(root, c + "Environments/SM_Gen_Env_Skyline_01", Vector3.ZERO)

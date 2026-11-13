@@ -55,7 +55,9 @@ func open_counter() -> void:
 
 
 ## The display tank: its fish, with move / name / favourite, and Edit tank.
-func open_display_tank() -> void:
+func open_display_tank(location: String = Fish.DISPLAY) -> void:
+	_shop_floor._display_loc = location if Game.state.has_second_display() else Fish.DISPLAY
+	_shop_floor.refresh()
 	_show_columns(false, true, false)
 	_open_rooms(_shop_floor, "Display tank", DISPLAY_SIZE)
 
@@ -79,6 +81,7 @@ func open_desk() -> void:
 		func(): Game.lab_requested.emit())
 	_desk_button("Fish Show", state.shows_unlocked(), "Reach '%s' to open fish shows" % state.unlock_level_name("fish_show"),
 		func(): Game.fish_show_requested.emit())
+	_desk_button("Goals", true, "", func(): _goals.open())
 	_desk_button("Gallery", true, "", func(): Game.gallery_requested.emit())
 	_desk_button("Breeding book", true, "", func(): _book.open())
 	_desk_button("Staff", state.staff_unlocked(), "Reach '%s' to hire staff" % state.unlock_level_name("staff"),

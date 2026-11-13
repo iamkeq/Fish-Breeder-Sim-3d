@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.0] - 2026-11-12
+
+### Added
+- **Everything from the 2D game up to v0.30.0:** regular customers with
+  loyalty and tips, the food choice per tank, Spawning Pellets and Growth
+  Flakes, the second display tank and the shop expansions. (Rules, data and
+  menus are synced from the 2D project.)
+- **A real street outside** (Polygon City): pavement, a two-lane road with
+  parked cars, shops either side and opposite, trees, lamps, benches and a
+  skyline. The ground is solid, so you no longer fall when you leave the shop.
+- **Desk buttons** on the bottom shelf of the front desk: Close shop (from
+  13:00, ends the day) and Restock / Reopen. No need for the top bar.
+- **Click the laptop on the front desk** to open the Market.
+- **Goals** button on the back-room desk.
+- The shop expansions show in 3D: window boxes and pot plants, a striped
+  awning, a neon fish sign and "open" neon, a reading corner, and a second
+  display tank stand.
+- Food buffs show as a small symbol over fish (heart = Spawning Pellets,
+  triangle = Growth Flakes).
+
+### Changed
+- The cash register faces the shopkeeper.
+
 ## [0.1.0] - 2026-11-12
 
 ### Added

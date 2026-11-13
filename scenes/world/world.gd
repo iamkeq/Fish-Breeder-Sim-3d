@@ -16,6 +16,8 @@ var player: CharacterBody3D
 var hud: Control
 var anchors: Dictionary = {}
 var display_tank: Node3D
+var display_tank_2: Node3D
+var _button_labels: Dictionary = {}
 
 var _prompt: Label
 var _crosshair: ColorRect
@@ -29,6 +31,8 @@ func _ready() -> void:
 	var built := ShopBuilder.new().build(self)
 	anchors = built["anchors"]
 	display_tank = built["display_tank"]
+	display_tank_2 = built["display_tank_2"]
+	_button_labels = built["button_labels"]
 	player = Player.new()
 	add_child(player)
 	player.place(anchors["start"], 0.0)
@@ -109,7 +113,8 @@ func _process(_delta: float) -> void:
 	if player.active:
 		var target = player.look_target()
 		if target != null:
-			_prompt.text = target.prompt
+			_prompt.text = _prompt_for(target)
+	_update_desk_buttons()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -142,7 +147,15 @@ func interact() -> void:
 func open_target(target) -> void:
 	match target.kind:
 		"display_tank":
-			hud.open_display_tank()
+			hud.open_display_tank(target.arg)
+		"market":
+			hud.open_market()
+		"close_shop":
+			if Game.can_close_shop():
+				Game.close_shop()
+		"restock":
+			if Game.state.restock_speed() > 0.0:
+				Game.set_restocking(not Game.state.restocking)
 		"tank":
 			hud.open_tank(target.arg)
 		"counter", "customer":
@@ -151,3 +164,29 @@ func open_target(target) -> void:
 			hud.open_market()
 		"desk":
 			hud.open_desk()
+
+
+## The hint under the crosshair. The two desk buttons say what they would do right now.
+func _prompt_for(target) -> String:
+	var state := Game.state
+	match target.kind:
+		"close_shop":
+			if Game.can_close_shop():
+				return "Click: Close the shop and end the day"
+			if not state.clock.is_open:
+				return "The shop is already closed"
+			return "You can close from %s" % GameClock.format_minutes(state.clock.earliest_close_minutes())
+		"restock":
+			if state.restock_speed() <= 0.0:
+				return "Closing for restock isn't available yet"
+			return "Click: Reopen the shop" if state.restocking else "Click: Close for restock (faster clock, no customers)"
+	return target.prompt
+
+
+func _update_desk_buttons() -> void:
+	if _button_labels.is_empty():
+		return
+	var state := Game.state
+	_button_labels["restock"].text = "Reopen" if state.restocking else "Restock"
+	var can_close := Game.can_close_shop()
+	_button_labels["close_shop"].text = "Close shop" if can_close else "Close from %s" % GameClock.format_minutes(state.clock.earliest_close_minutes())

@@ -94,6 +94,14 @@ func _add_money(s: Dictionary) -> void:
 	if log["walked_out"] > 0:
 		people += "   ·   wandered off: %d" % log["walked_out"]
 	_line(people)
+	var met: Array = log.get("regulars_met", [])
+	if not met.is_empty():
+		_line("New regulars: %s" % ", ".join(met)).modulate = GOOD
+	var served: Array = log.get("regulars_served", [])
+	if not served.is_empty():
+		_line("Regulars served: %d (%s)" % [served.size(), ", ".join(served)])
+	if int(log.get("tips", 0)) > 0:
+		_line("Tips from regulars: $%d" % int(log["tips"])).modulate = GOOD
 
 
 ## "Fish show results": how your entry placed, the prize and the top rivals.
@@ -193,6 +201,8 @@ func _add_back_room(s: Dictionary) -> void:
 		_fish_row(grown, true)
 	if int(s.get("growth_food_used", 0)) > 0:
 		_line("Growth Flakes: fry grew %d days tonight (%d used)" % [int(s.get("growth_food_days", 2)), int(s["growth_food_used"])]).modulate = GOOD
+	if int(s.get("spawning_food_used", 0)) > 0:
+		_line("Spawning Pellets: +%d extra fry (%d used)" % [int(s.get("bonus_fry", 0)), int(s["spawning_food_used"])]).modulate = GOOD
 	if s["fry_unfed"] > 0:
 		var places := ""
 		if not s.get("unfed_places", []).is_empty():

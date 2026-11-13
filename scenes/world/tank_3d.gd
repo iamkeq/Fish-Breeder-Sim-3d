@@ -49,6 +49,8 @@ var _label: Label3D
 var _label_text := ""
 var _fish: Dictionary = {}  # fish id -> Fish3D
 var _decor_key := "-"
+var _body: StaticBody3D
+var _solid: StaticBody3D
 
 
 ## Builds the tank. `p_size` gives the footprint (x, z) and `kind` / `prompt` go to
@@ -74,7 +76,8 @@ func setup(p_location: String, p_size: Vector3, _p_stand: float, p_label: String
 	var body := Interactable.new()
 	body.setup(kind, prompt, Vector3(0, top * 0.5, 0), Vector3(size.x + 0.1, top, size.z + 0.1), location)
 	add_child(body)
-	Synty.solid(self, Vector3(0, stand_height * 0.5, 0), Vector3(size.x + 0.1, stand_height, size.z + 0.1))
+	_body = body
+	_solid = Synty.solid(self, Vector3(0, stand_height * 0.5, 0), Vector3(size.x + 0.1, stand_height, size.z + 0.1))
 	Game.changed.connect(refresh)
 	refresh()
 
@@ -91,6 +94,12 @@ func refresh() -> void:
 	var state := Game.state
 	var tank := state.tank_at(location)
 	var present := tank != null or location == Fish.HOLDING
+	# The second display stand only exists once it is bought.
+	var shown := location != Fish.DISPLAY2 or state.has_second_display()
+	visible = shown
+	if _body != null:
+		_body.collision_layer = 1 if shown else 0
+		_solid.collision_layer = 1 if shown else 0
 	for part in _glass_parts:
 		part.visible = present
 	_decor_root.visible = present
@@ -107,6 +116,7 @@ func refresh() -> void:
 	for fish_id in ids:
 		if _fish.has(fish_id):
 			_fish[fish_id].set_bounds(swim_bounds())
+			_fish[fish_id].set_buff(state.food_buff_icon(state.inventory.get_fish(fish_id)))
 			continue
 		var f: Fish = state.inventory.get_fish(fish_id)
 		if f == null:
@@ -114,6 +124,7 @@ func refresh() -> void:
 		var fish3d := Fish3D.new()
 		add_child(fish3d)
 		fish3d.setup(f, state.species_of(f), swim_bounds())
+		fish3d.set_buff(state.food_buff_icon(f))
 		_fish[fish_id] = fish3d
 	_refresh_decor(tank)
 

@@ -332,8 +332,8 @@ func cancel_order(order_index: int) -> void:
 		changed.emit()
 
 
-func install_display_tank(tank_item_id: String) -> bool:
-	var ok := state.install_display_tank(tank_item_id)
+func install_display_tank(tank_item_id: String, location: String = Fish.DISPLAY) -> bool:
+	var ok := state.install_display_tank(tank_item_id, location)
 	if ok:
 		changed.emit()
 	return ok
@@ -410,6 +410,11 @@ func set_standing_order(item_id: String, enabled: bool, reorder_at: int, quantit
 func set_order_money_floor(amount: int) -> void:
 	state.set_order_money_floor(amount)
 	changed.emit()
+
+
+## Picks the food a breeding tank (or Fish.HOLDING) uses. See GameState.set_food_choice().
+func set_food_choice(location: String, item_id: String) -> bool:
+	return _changed_if(state.set_food_choice(location, item_id))
 
 
 func buy_breeding_tank() -> bool:

@@ -26,17 +26,17 @@ Current version: **0.1.0** (Godot 4.7.2, Compatibility renderer)
 
 ## Art
 
-The 3D shop is built from Synty models (Polygon Shops, plus the fish tank and fish
+The 3D shop is built from Synty models (Polygon Shops, the street outside from Polygon City, plus the fish tank and fish
 from Polygon Office). They are licensed, so `assets/Synty/` is not in the repository:
-copy the Godot export of the Polygon Shops pack there (and `PolygonOffice/Models`
+copy the Godot exports of the Polygon Shops and Polygon City packs there (and `PolygonOffice/Models`
 and `Textures/PolygonOffice_Texture_01_A.png` from the Office source files), then run
 `godot --headless --path . --import`. Nothing in the shop is drawn in code or from the
 old 2D sprite sheets; the 2D menus still use their own art.
 
 ## Development
 
-The game rules live in `scripts/core/` and `data/` (copied from the 2D game at
-v0.26.0); the 3D world is in `scenes/world/`, and it reuses the 2D game's
+The game rules live in `scripts/core/` and `data/` (synced from the 2D game, now at
+v0.30.0); the 3D world is in `scenes/world/`, and it reuses the 2D game's
 menus as overlays.
 
 ```

@@ -4,6 +4,7 @@ extends Node3D
 ## kept inside `bounds`.
 
 const Synty := preload("res://scenes/world/synty.gd")
+const BuildUtil := preload("res://scenes/world/build_util.gd")
 ## Size of an adult fish relative to the model (a guppy is about 20 cm; the model is 17 cm).
 const ADULT_SCALE := 1.15
 const SPEED_RANGE := Vector2(0.07, 0.17)
@@ -23,6 +24,8 @@ var species: Dictionary
 var bounds := AABB(Vector3(-0.4, 0.1, -0.2), Vector3(0.8, 0.4, 0.4))
 
 var _model: Node3D
+## A little symbol over the fish while a food buff is on it (see set_buff).
+var _buff: Label3D
 var _target := Vector3.ZERO
 var _speed := 0.1
 var _rest := 0.0
@@ -43,6 +46,21 @@ func setup(p_fish: Fish, p_species: Dictionary, p_bounds: AABB) -> void:
 	position = _random_point()
 	_pick_target()
 	_update_frame()
+
+
+## Shows a symbol above the fish for its food buff ("heart" = spawning pellets,
+## "arm" = growth flakes); "" removes it.
+func set_buff(icon: String) -> void:
+	if icon == "":
+		if _buff != null:
+			_buff.queue_free()
+			_buff = null
+		return
+	if _buff == null:
+		_buff = BuildUtil.label(self, "", Vector3(0, 0.13, 0), 0.0016)
+		_buff.no_depth_test = true
+	_buff.text = "♥" if icon == "heart" else "▲"
+	_buff.modulate = Color("#ff6f91") if icon == "heart" else Color("#ffd24d")
 
 
 ## A new tank size (or a grown fish): keep the fish inside it.

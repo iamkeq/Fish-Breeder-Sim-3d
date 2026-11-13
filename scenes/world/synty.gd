@@ -6,6 +6,7 @@ extends RefCounted
 const SHOPS := "res://assets/Synty/PolygonShops/Prefabs/"
 const MATERIALS := "res://assets/Synty/PolygonShops/Materials/"
 const OFFICE := "res://assets/Synty/PolygonOffice/"
+const CITY := "res://assets/Synty/PolygonCity/Prefabs/"
 
 static var _scenes := {}
 static var _office_body: StandardMaterial3D
@@ -13,9 +14,10 @@ static var _office_glass: StandardMaterial3D
 
 
 ## A fresh copy of a Polygon Shops prefab (path under Prefabs/, no extension), without colliders.
+## A path starting "City/" is a Polygon City prefab instead (the street outside).
 static func make(rel: String) -> Node3D:
 	if not _scenes.has(rel):
-		_scenes[rel] = load(SHOPS + rel + ".tscn")
+		_scenes[rel] = load(CITY + rel.substr(5) + ".tscn") if rel.begins_with("City/") else load(SHOPS + rel + ".tscn")
 	var node: Node3D = _scenes[rel].instantiate()
 	_strip(node)
 	return node

@@ -4,6 +4,7 @@ extends Control
 ## them and a button to sell them to the wholesaler.
 
 const UI := preload("res://scenes/ui/ui_kit.gd")
+const FoodIcons := preload("res://scenes/ui/food_icons.gd")
 
 ## The player wants to open the breeding book.
 signal book_requested
@@ -12,6 +13,9 @@ signal book_requested
 @onready var _tank_title: Label = %TankTitle
 @onready var _tank_view: Control = %TankView
 @onready var _brood_info: Label = %BroodInfo
+## "Food:" picker for the selected tank (built in code, just under the brood line).
+var _food_picker: OptionButton
+var _food_row: HBoxContainer
 @onready var _fish_rows: VBoxContainer = %FishRows
 @onready var _status: Label = %Status
 
@@ -26,6 +30,7 @@ const HOLDING_TAB := -1
 
 
 func _ready() -> void:
+	_build_food_row()
 	Game.changed.connect(refresh)
 	refresh()
 
@@ -37,6 +42,7 @@ func refresh() -> void:
 	_tank_view.set_location(Fish.HOLDING if holding else Fish.breeding_location(_selected_tank))
 	var roles := _breeding_roles(state)
 	_refresh_tabs(state, roles)
+	_refresh_food_picker(state, Fish.HOLDING if holding else Fish.breeding_location(_selected_tank))
 	if holding:
 		_tank_title.text = "Holding tanks"
 		_brood_info.text = "Fish waiting for a home. Move them to a breeding tank or the display.   ·   Fish food: %d" % state.food_count()
@@ -47,7 +53,9 @@ func refresh() -> void:
 		child.queue_free()
 	for i in state.breeding_tanks.size():
 		_add_section(Fish.breeding_location(i), "Breeding tank %d" % (i + 1), roles)
-	_add_section(Fish.DISPLAY, "Display tank (shop floor)", roles)
+	_add_section(Fish.DISPLAY, "Display tank 1 (shop floor)" if state.has_second_display() else "Display tank (shop floor)", roles)
+	if state.has_second_display():
+		_add_section(Fish.DISPLAY2, "Display tank 2 (shop floor)", roles)
 	for order in state.orders:
 		if order.get("tank") != null:
 			_add_section(Fish.order_location(order["id"]), "Order tank for %s" % order.get("customer", "a customer"), roles)
@@ -68,7 +76,7 @@ func _refresh_tabs(state: GameState, roles: Dictionary) -> void:
 		tab.button_pressed = i == _selected_tank
 		tab.pressed.connect(_select_tank.bind(i))
 		column.add_child(tab)
-		column.add_child(_tank_contents(state, tank, roles))
+		column.add_child(_tank_contents(state, tank, roles, Fish.breeding_location(i)))
 		_tank_tabs.add_child(column)
 	var held := state.inventory.fish_list(Fish.HOLDING).size()
 	var holding_tab := UI.small_button("Holding  (%d)" % held, "The fish waiting in the holding tanks.")
@@ -115,10 +123,64 @@ func _refresh_tabs(state: GameState, roles: Dictionary) -> void:
 	_tank_tabs.add_child(book)
 
 
+func _build_food_row() -> void:
+	_food_row = HBoxContainer.new()
+	_food_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_food_row.add_theme_constant_override("separation", 6)
+	var label := Label.new()
+	label.text = "Food:"
+	_food_row.add_child(label)
+	_food_picker = OptionButton.new()
+	_food_picker.focus_mode = Control.FOCUS_NONE
+	_food_picker.fit_to_longest_item = false
+	_food_picker.custom_minimum_size = Vector2(260, 0)
+	_food_picker.tooltip_text = "The food this tank eats each night. If it runs out, the tank uses Fish Food, then any other food."
+	_food_picker.item_selected.connect(_on_food_selected)
+	_food_row.add_child(_food_picker)
+	_brood_info.get_parent().add_child(_food_row)
+	_brood_info.get_parent().move_child(_food_row, _brood_info.get_index() + 1)
+
+
+## Lists every food with its stock for the selected tank; the tank's choice is selected.
+func _refresh_food_picker(state: GameState, location: String) -> void:
+	_food_picker.clear()
+	var choice := state.food_choice(location)
+	var default := state.default_food()
+	for item_id in state.db.items_in_category("food"):
+		var stock := state.inventory.count(item_id)
+		var text := "%s (%d)" % [state.db.items[item_id]["name"], stock]
+		if stock == 0 and item_id != default:
+			text = "%s (none, uses %s)" % [state.db.items[item_id]["name"], state.db.items[default]["name"]]
+		_food_picker.add_item(text)
+		var index := _food_picker.item_count - 1
+		_food_picker.set_item_metadata(index, item_id)
+		_food_picker.set_item_tooltip(index, _food_effect(state, item_id))
+		if item_id == choice:
+			_food_picker.select(index)
+	_food_picker.tooltip_text = "The food this tank eats each night. %s" % _food_effect(state, choice)
+
+
+## What a food does, read from its data.
+func _food_effect(state: GameState, item_id: String) -> String:
+	var item: Dictionary = state.db.items[item_id]
+	var parts := PackedStringArray()
+	var days := state.food_growth_days(item_id)
+	parts.append("Fry grow %d day%s a night." % [days, "" if days == 1 else "s"])
+	var multiplier := state.food_brood_multiplier(item_id)
+	if multiplier > 1.0:
+		parts.append("Broods %d%% bigger (one portion a night while the tank has a breeding group)." % roundi((multiplier - 1.0) * 100.0))
+	return "%s: %s" % [item["name"], " ".join(parts)]
+
+
+func _on_food_selected(index: int) -> void:
+	var location := Fish.HOLDING if _selected_tank == HOLDING_TAB else Fish.breeding_location(_selected_tank)
+	Game.set_food_choice(location, str(_food_picker.get_item_metadata(index)))
+
+
 ## A small list under a tank's tab: each adult ("♂ Red ★★ sire"), then the fry
 ## as a count with their varieties ("+ 6 fry (Red, Orange)"). The tank's sire
 ## and breeding mothers are tagged.
-func _tank_contents(state: GameState, tank: Tank, roles: Dictionary) -> Label:
+func _tank_contents(state: GameState, tank: Tank, roles: Dictionary, location: String) -> Label:
 	var adults := []
 	var fry := 0
 	var fry_looks := []
@@ -141,6 +203,9 @@ func _tank_contents(state: GameState, tank: Tank, roles: Dictionary) -> Label:
 		lines.append("+ %d fry (%s)" % [fry, ", ".join(fry_looks)])
 	if lines.is_empty():
 		lines.append("(empty)")
+	var food_id := state.food_choice(location)
+	if food_id != state.default_food():
+		lines.append("Food: %s" % state.db.items[food_id]["name"])
 	var label := Label.new()
 	label.text = "\n".join(lines)
 	label.add_theme_font_size_override("font_size", 11)
@@ -207,7 +272,23 @@ func _fish_entry(f: Fish, roles: Dictionary) -> Control:
 	traits.visible = not state.is_adult(f) or species["traits"].size() > 1
 	traits.add_theme_font_size_override("font_size", 13)
 	traits.modulate = Color(1, 1, 1, 0.8)
-	info.add_child(title)
+	var buff := state.food_buff(f)
+	if buff == "":
+		info.add_child(title)
+	else:
+		var name_row := HBoxContainer.new()
+		name_row.add_theme_constant_override("separation", 6)
+		name_row.add_child(title)
+		var icon := TextureRect.new()
+		icon.texture = FoodIcons.texture(state.food_buff_icon(f))
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon.custom_minimum_size = Vector2(22, 22)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_STOP
+		icon.tooltip_text = state.food_buff_text(buff)
+		name_row.add_child(icon)
+		info.add_child(name_row)
 	info.add_child(traits)
 	if state.is_adult(f):
 		var value := Label.new()
@@ -278,5 +359,16 @@ func _brood_text(state: GameState, tank_index: int) -> String:
 	if nights < 0:
 		return "Needs an adult male and female to breed."
 	var mothers: int = state.breeding_group(tank_index)["mothers"].size()
-	return "Next brood in %d night%s · %d mother%s" % [nights, "" if nights == 1 else "s",
+	var text := "Next brood in %d night%s · %d mother%s" % [nights, "" if nights == 1 else "s",
 		mothers, "" if mothers == 1 else "s"]
+	var food_id := state.food_choice(Fish.breeding_location(tank_index))
+	var multiplier := state.food_brood_multiplier(food_id)
+	if multiplier > 1.0:
+		var name: String = state.db.items[food_id]["name"]
+		# On track for the full bonus while every night of this cycle so far was fed.
+		if state.brood_food_nights[tank_index] == state.brood_nights[tank_index]:
+			text += " · %s every night: broods +%d%%" % [name,
+				roundi((state.food_brood_multiplier_full(food_id) - 1.0) * 100.0)]
+		else:
+			text += " · %s: broods +%d%%" % [name, roundi((multiplier - 1.0) * 100.0)]
+	return text

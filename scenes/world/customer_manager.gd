@@ -46,7 +46,10 @@ func _spawn(c: Dictionary) -> void:
 		person.rotation.y = PI
 		return
 	person.global_position = anchors["door"]
-	person.go(route_for(_kind, anchors))
+	var spots := anchors.duplicate()
+	if str(c.get("tank_location", "")) == Fish.DISPLAY2:
+		spots["display"] = anchors["display2"]
+	person.go(route_for(_kind, spots))
 	person.route_done.connect(_on_route_done.bind(person))
 
 
