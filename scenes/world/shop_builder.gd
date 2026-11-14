@@ -243,7 +243,7 @@ func _shelf() -> void:
 	var body := Interactable.new()
 	body.setup("shelf", "Click: Shelf", SHELF_POS + Vector3(0.0, 0.95, 0.0), Vector3(0.9, 1.9, 3.1))
 	root.add_child(body)
-	BuildUtil.label(root, "Shop shelf", Vector3(SHELF_POS.x + 0.5, 2.3, SHELF_POS.z), 0.004)
+	BuildUtil.sign(root, "Shop shelf", Vector3(X0 + 0.17, 2.2, SHELF_POS.z + 0.9), 90.0, 0.16)  # on the wall above it
 
 
 ## Things that only make the shop cosy: door mat, rug, plants, bench, notice board, posters.
@@ -304,7 +304,7 @@ func _back_room() -> void:
 	var body := Interactable.new()
 	body.setup("desk", "Click: Back room desk", p + Vector3(0, 0.6, 0), Vector3(1.9, 1.2, 1.1))
 	root.add_child(body)
-	BuildUtil.label(root, "Desk", p + Vector3(0, 1.8, 0), 0.004)
+	BuildUtil.sign(root, "Desk", p + Vector3(0, 0.85, -0.6), 180.0, 0.1)  # on the desk's front edge
 
 
 const SIGN_Y := 2.38
@@ -312,10 +312,9 @@ const SIGN_Y := 2.38
 func _signs() -> void:
 	# Facing +Z, readable from the shop side of the front wall.
 	# Under the ceiling trim and clear of the wall, so the letters don't cut into either.
-	BuildUtil.label(root, "Fig Tree Fish Breeder", Vector3(0, SIGN_Y, Z0 + 0.3), 0.0042, false)
-	var back_sign := BuildUtil.label(root, "Back room", Vector3(0, SIGN_Y, DIVIDER_Z - 0.3), 0.0042, false)
-	back_sign.rotation.y = PI  # faces the shop
-	BuildUtil.label(root, "Shop floor", Vector3(0, SIGN_Y, DIVIDER_Z + 0.3), 0.0042, false)
+	BuildUtil.sign(root, "Fig Tree Fish Breeder", Vector3(0, SIGN_Y, Z0 + 0.18), 0.0, 0.26)
+	BuildUtil.sign(root, "Back room", Vector3(0, SIGN_Y, DIVIDER_Z - 0.18), 180.0, 0.22)  # faces the shop
+	BuildUtil.sign(root, "Shop floor", Vector3(0, SIGN_Y, DIVIDER_Z + 0.18), 0.0, 0.22)
 
 
 ## The street outside, from Polygon City: a pavement along the shop front, a two-lane
@@ -354,8 +353,7 @@ func _outside() -> void:
 	_street_furniture(c)
 	_skyline(c)
 	# The shop's name over the door, readable from the street.
-	var name_sign := BuildUtil.label(root, "Fig Tree Fish Breeder", Vector3(0, 2.8, Z0 - 0.45), 0.0045, false)
-	name_sign.rotation.y = PI
+	BuildUtil.sign(root, "Fig Tree Fish Breeder", Vector3(0, 2.75, Z0 - 0.3), 180.0, 0.32)
 
 
 ## Shops either side of ours, fronts flush with our front wall (turned to face the road).

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.5] - 2026-11-13
+
+### Changed
+- **Name signs instead of floating letters:**
+  - Every tank has a name plate on both long sides of its cabinet, just under
+    the glass, which also shows "(empty stand)" for an empty one.
+  - "Desk" is a plate on the back-room desk, and "Shop shelf" is a sign on the
+    wall above the shelf.
+  - The shop name and the Back room / Shop floor signs sit on plates on the
+    wall.
+
+  The plates are Synty's blank sign strip, sized to fit the words.
+
 ## [0.4.4] - 2026-11-13
 
 ### Changed

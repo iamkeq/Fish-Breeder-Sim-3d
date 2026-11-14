@@ -15,8 +15,6 @@ const ROW_Z := {"back": -0.28, "mid": 0.0, "front": 0.28}
 const ROW_SCALE := {"back": 0.85, "mid": 0.95, "front": 1.0}
 const SPRITE_HEIGHT := {"short": 0.3, "medium": 0.42, "tall": 0.62}
 const SAND_HEIGHT := 0.07
-## How close you must be to see a tank's name.
-const LABEL_RANGE := 4.5
 
 ## The Synty tank model: where its glass sits (model metres) before stretching.
 const MODEL_GLASS_BOTTOM := 0.70
@@ -79,7 +77,7 @@ var stand_height := 0.75
 
 var _glass_parts: Array[Node3D] = []
 var _decor_root: Node3D
-var _label: Label3D
+var _signs: Array[Node3D] = []  # the name plate on each long side of the cabinet
 var _label_text := ""
 var _fish: Dictionary = {}  # fish id -> Fish3D
 var _decor_key := "-"
@@ -107,7 +105,13 @@ func setup(p_location: String, p_size: Vector3, _p_stand: float, p_label: String
 	_decor_root = Node3D.new()
 	add_child(_decor_root)
 	var top := stand_height + size.y
-	_label = BuildUtil.label(self, p_label, Vector3(0, top + 0.22, 0))
+	# A name plate on both long sides of the cabinet, just under the glass (tanks are
+	# seen from either side: customers and you, or the room when it backs onto a wall).
+	var front := 0.334 * sz + 0.004
+	for side in [1.0, -1.0]:
+		var plate := BuildUtil.sign(self, p_label, Vector3(0, stand_height - 0.08 * sy, front * side),
+			0.0 if side > 0.0 else 180.0, 0.085)
+		_signs.append(plate)
 	var body := Interactable.new()
 	body.setup(kind, prompt, Vector3(0, top * 0.5, 0), Vector3(size.x + 0.1, top, size.z + 0.1), location)
 	add_child(body)
@@ -123,18 +127,11 @@ func decor_base(slot: int, row: String) -> Vector3:
 		float(ROW_Z[row]) * (size.z - 0.15))
 
 
-## Hides the floating name for good (when the tank is shown inside a menu).
+## Hides the name plates (when the tank is shown inside a menu).
 func hide_label() -> void:
-	_label.visible = false
 	_label_hidden = true
-
-
-## The name floats over a tank only while you are near it, so neighbouring tanks don't overlap.
-func _process(_delta: float) -> void:
-	if _label_hidden or _label == null:
-		return
-	var camera := get_viewport().get_camera_3d()
-	_label.visible = camera != null and camera.global_position.distance_to(_label.global_position) < LABEL_RANGE
+	for plate in _signs:
+		plate.visible = false
 
 
 ## Where fish may swim (tank-local).
@@ -158,7 +155,8 @@ func refresh() -> void:
 	for part in _glass_parts:
 		part.visible = present
 	_decor_root.visible = present
-	_label.text = _label_text if present else _label_text + " (empty stand)"
+	for plate in _signs:
+		BuildUtil.set_sign_text(plate, _label_text if present else _label_text + " (empty stand)")
 	var ids: Array = []
 	if tank != null:
 		ids = tank.fish_ids
