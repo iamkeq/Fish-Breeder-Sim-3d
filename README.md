@@ -49,7 +49,7 @@ menus as overlays.
 
 ## Publishing
 
-`.	ools\publish.ps1` runs the tests, works out which Synty files the game uses
+`.\tools\publish.ps1` runs the tests, works out which Synty files the game uses
 (`tools/export_filter.gd`, which writes the exclude list into `export_presets.cfg`),
 then builds the web and Windows versions and uploads them with butler to
 https://figtreegames.itch.io/fish-breeding-store-sim-3d (channels `html5` and
