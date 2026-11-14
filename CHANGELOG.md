@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.4] - 2026-11-13
+
+### Changed
+- **Fry in the holding tank always grow** at least a day each night, even with
+  no food left, and no longer count as going hungry. If there is food they
+  still eat it, so Growth Flakes still speed them up. Fry in breeding tanks
+  still need food to grow.
+
 ## [0.4.3] - 2026-11-13
 
 ### Added
