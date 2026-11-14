@@ -2,6 +2,11 @@
 
 ## [0.4.5] - 2026-11-13
 
+### Added
+- Published to itch.io (web and Windows). `tools/publish.ps1` builds and
+  uploads both, leaving unused Synty files out of the builds (630 MB down to
+  about 170 MB).
+
 ### Changed
 - **Name signs instead of floating letters:**
   - Every tank has a name plate on both long sides of its cabinet, just under
