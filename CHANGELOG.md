@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.1] - 2026-11-13
+
+### Fixed
+- **Rocks in the tanks** no longer look like the same pale lumps lost in the
+  sand. Each kind has its own colour: blue-grey seiryu, black lava, green
+  mossy slate, dark slate, grey mountain rock, and pale holey rock. Rocks are
+  smaller (at most a fifth of the tank's width), and each sits at its own
+  angle so repeats don't look stamped.
+
 ## [0.4.0] - 2026-11-13
 
 ### Changed

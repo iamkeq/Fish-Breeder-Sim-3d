@@ -55,6 +55,18 @@ const DECOR := {
 	"spider_wood": "Pirates/Props/SM_Prop_WoodPlank_01",
 	"hollow_log": "Generic/SM_Generic_TreeStump_01",
 }
+## Rock colours (multiplied over the model's own colour), so each kind reads as itself
+## against the pale sand: blue-grey seiryu, black lava, green mossy slate and so on.
+const ROCK_TINTS := {
+	"seiryu_stone": Color("#7c8794"), "seiryu_spire": Color("#76818f"),
+	"mountain_rock": Color("#9a958c"), "rock_cave": Color("#6e6860"),
+	"holey_rock": Color("#e6dcc4"), "lava_rock": Color("#4a3a38"),
+	"mossy_slate": Color("#7d9468"), "slate_stack": Color("#5f666e"),
+	"zen_stones": Color("#6d6b68"), "mixed_pebbles": Color("#b3a28e"),
+}
+## Rocks are never wider than this share of the tank (they are chunky models).
+const ROCK_MAX_WIDTH := 0.2
+
 ## Substrate colour: the Synty material laid over the tank floor.
 const SUBSTRATE_MATERIAL := {
 	"fine_sand": "Building_Mats/PolygonShops_Mat_Base_Blank_01_mat",
@@ -227,8 +239,17 @@ func _add_decor(item: Dictionary, slot: int, row: String) -> void:
 		return
 	# Scale to the wanted height, but never wider than a slot can hold. Only plants
 	# are stretched upwards (their models are low and wide).
-	var across := minf(height / b.size.y, size.x * 0.3 / maxf(b.size.x, b.size.z))
+	var is_rock: bool = item.get("category", "") == "rock"
+	var widest := size.x * (ROCK_MAX_WIDTH if is_rock else 0.3)
+	var across := minf(height / b.size.y, widest / maxf(b.size.x, b.size.z))
 	var up := height / b.size.y if item.get("category", "") == "plant" else across
 	piece.scale = Vector3(across, up, across)
+	var id := String(item.get("id", ""))
+	if ROCK_TINTS.has(id):
+		Synty.tint(piece, ROCK_TINTS[id])
+	elif is_rock:
+		Synty.tint(piece, Color("#8d8a84"))
+	if is_rock:  # a turn of its own, so repeated rocks don't look stamped
+		piece.rotation.y = float(absi(("%s%d" % [id, slot]).hash()) % 360) * PI / 180.0
 	piece.position = Vector3(x, floor_y - b.position.y * up, z)
 	_decor_root.add_child(piece)

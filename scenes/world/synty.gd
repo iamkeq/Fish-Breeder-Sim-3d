@@ -93,6 +93,30 @@ static func paint(node: Node, material: Material) -> void:
 		paint(child, material)
 
 
+## Multiply every surface's colour under `node` by `tint` (the texture shows through), so
+## one model can stand in for differently coloured things. Copies are shared per material.
+static var _tinted := {}
+
+
+static func tint(node: Node, tint_color: Color) -> void:
+	if node is MeshInstance3D:
+		var mi := node as MeshInstance3D
+		if mi.mesh != null:
+			for s in mi.mesh.get_surface_count():
+				var m := mi.get_surface_override_material(s)
+				if m == null:
+					m = mi.mesh.surface_get_material(s)
+				if m is BaseMaterial3D:
+					var key := "%d|%s" % [m.get_instance_id(), tint_color.to_html()]
+					if not _tinted.has(key):
+						var copy := (m as BaseMaterial3D).duplicate() as BaseMaterial3D
+						copy.albedo_color = (m as BaseMaterial3D).albedo_color * tint_color
+						_tinted[key] = copy
+					mi.set_surface_override_material(s, _tinted[key])
+	for child in node.get_children():
+		tint(child, tint_color)
+
+
 static func material(name: String) -> Material:
 	return load(MATERIALS + name + ".tres")
 
