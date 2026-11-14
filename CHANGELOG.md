@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.6] - 2026-11-13
+
+### Fixed
+- Floors and walls no longer flicker or shimmer as you walk: 4x anti-aliasing,
+  anisotropic filtering on every Synty texture, and a tighter camera depth range.
+
 ## [0.4.5] - 2026-11-13
 
 ### Added

@@ -41,7 +41,9 @@ func _ready() -> void:
 	camera = Camera3D.new()
 	camera.position = Vector3(0, EYE_HEIGHT, 0)
 	camera.fov = 75.0
-	camera.near = 0.05
+	# A tighter depth range keeps the floor, walls and trim from flickering (z-fighting).
+	camera.near = 0.08
+	camera.far = 400.0
 	add_child(camera)
 	# Layer 1 = furniture and walls, layer 2 = people: the ray sees both.
 	_ray = RayCast3D.new()

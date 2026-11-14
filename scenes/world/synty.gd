@@ -32,6 +32,7 @@ static func make(rel: String) -> Node3D:
 		_scenes[rel] = load(_path(rel))
 	var node: Node3D = _scenes[rel].instantiate()
 	_strip(node)
+	_sharpen(node)
 	return node
 
 
@@ -118,13 +119,34 @@ static func tint(node: Node, tint_color: Color) -> void:
 
 
 static func material(name: String) -> Material:
-	return load(MATERIALS + name + ".tres")
+	return _sharpened(load(MATERIALS + name + ".tres"))
 
 
 ## A Synty material with its colour multiplied by `tint` (to warm up a plain surface).
 static func tinted(name: String, tint: Color) -> Material:
 	var m: StandardMaterial3D = (load(MATERIALS + name + ".tres") as StandardMaterial3D).duplicate()
 	m.albedo_color = tint
+	return _sharpened(m)
+
+
+## Anisotropic filtering on every material under `node`, so floors and walls seen at a
+## low angle stay crisp instead of shimmering as you walk. Materials are shared, so each
+## is only changed once.
+static func _sharpen(node: Node) -> void:
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		var mi := node as MeshInstance3D
+		for s in mi.mesh.get_surface_count():
+			_sharpened(mi.mesh.surface_get_material(s))
+			_sharpened(mi.get_surface_override_material(s))
+	for child in node.get_children():
+		_sharpen(child)
+
+
+static func _sharpened(m: Material) -> Material:
+	if m is BaseMaterial3D:
+		var b := m as BaseMaterial3D
+		if b.texture_filter == BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS:
+			b.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	return m
 
 
