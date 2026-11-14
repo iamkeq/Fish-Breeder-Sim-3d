@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2] - 2026-11-13
+
+### Added
+- **Speed button** next to Pause in the top bar: the clock runs at 1x, 2x or
+  4x while the shop stays open and customers keep coming. Click it, or press
+  T, to step through the speeds. It isn't saved, so each session starts at 1x.
+
 ## [0.4.1] - 2026-11-13
 
 ### Fixed

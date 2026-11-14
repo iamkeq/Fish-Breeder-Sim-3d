@@ -16,6 +16,7 @@ const WIDE_SIZE := Vector2(1200, 540)
 var _room_overlay: ColorRect
 var _rooms: Control
 var _desk_box: VBoxContainer
+var _speed_button: Button
 
 
 func _init() -> void:
@@ -38,6 +39,14 @@ func _ready() -> void:
 	add_child(_room_overlay)
 	move_child(_room_overlay, 2)  # under the other menus, so they close first on Esc
 	_room_overlay.adopt(_rooms)
+	# Speed: 1x / 2x / 4x while the shop is open, next to Pause.
+	_speed_button = Button.new()
+	_speed_button.focus_mode = Control.FOCUS_NONE
+	_speed_button.tooltip_text = "Run the clock faster while the shop is open: 1x, 2x or 4x. Click to change (or press T)."
+	_speed_button.pressed.connect(Game.cycle_speed)
+	_pause_button.add_sibling(_speed_button)
+	Game.clock_ticked.connect(_update_speed_button)
+	_update_speed_button()
 	_desk_box = VBoxContainer.new()
 	_desk_box.add_theme_constant_override("separation", 8)
 	_room_overlay.adopt(_desk_box)
@@ -49,6 +58,20 @@ func overlay_open() -> bool:
 		if child is ColorRect and child.visible:
 			return true
 	return false
+
+
+func _update_speed_button() -> void:
+	_speed_button.text = "Speed %dx" % int(Game.speed_multiplier)
+	_speed_button.add_theme_color_override("font_color",
+		Color.WHITE if Game.speed_multiplier == 1.0 else Color("#fff1a8"))
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_T and not overlay_open():
+		Game.cycle_speed()
+		get_viewport().set_input_as_handled()
+		return
+	super._unhandled_key_input(event)  # P to pause, F11 for full screen
 
 
 # --- Opening things from the world ---------------------------------------------
