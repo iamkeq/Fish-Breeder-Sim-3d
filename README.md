@@ -54,3 +54,10 @@ menus as overlays.
 then builds the web and Windows versions and uploads them with butler to
 https://figtreegames.itch.io/fish-breeding-store-sim-3d (channels `html5` and
 `windows`). Needs butler logged in and the Synty packs in `assets/`.
+
+## Logo
+
+`art/logo.png` (transparent), `art/cover.png` (630 x 500, itch.io cover) and
+`art/icon_square.png` (512 x 512) are rendered from the game's own models by
+`tools/make_logo.gd`: run `godot --path . --resolution 1280x720 res://tools/make_logo.tscn`.
+
