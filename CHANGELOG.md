@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3] - 2026-11-13
+
+### Added
+- **Buy a tank from the display tank screen:** with the stand empty and no
+  spare tank in stock, the screen offers "Buy a 20L Tank ($25) and set it up",
+  which buys one and puts it on the stand in one click. It's greyed out, with
+  the price as a tooltip, when you can't afford it.
+
 ## [0.4.2] - 2026-11-13
 
 ### Added
