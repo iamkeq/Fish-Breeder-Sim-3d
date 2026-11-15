@@ -7,7 +7,7 @@ extends Node3D
 const Customer3D := preload("res://scenes/world/customer_3d.gd")
 const CustomerPath := preload("res://scenes/world/customer_path.gd")
 
-## Stop name -> position: "door", "shelf", "display", "counter".
+## Stop name -> position: "door", "shelf", "display", "goldfish", "counter".
 var anchors: Dictionary = {}
 
 var _current: Node3D  # the person for Game.state.customer, if any

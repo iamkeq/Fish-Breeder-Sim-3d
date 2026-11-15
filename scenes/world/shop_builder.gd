@@ -14,6 +14,7 @@ const Interactable := preload("res://scenes/world/interactable.gd")
 const BuildUtil := preload("res://scenes/world/build_util.gd")
 const Synty := preload("res://scenes/world/synty.gd")
 const ShopFront3D := preload("res://scenes/world/shop_front_3d.gd")
+const GoldfishTank3D := preload("res://scenes/world/goldfish_tank_3d.gd")
 
 const BAY := 2.5  # every wall, floor and ceiling tile is 2.5 m
 const X0 := -6.25
@@ -34,6 +35,8 @@ const BUTTON_Z := 0.3
 const DISPLAY_POS := Vector3(3.6, 0.0, -2.8)
 const DISPLAY2_POS := Vector3(3.6, 0.0, -0.4)
 const SHELF_POS := Vector3(-5.6, 0.0, -2.5)
+## The goldfish tank stands against the left wall, between the shelf and the plant.
+const GOLDFISH_POS := Vector3(-5.85, 0.0, 0.4)
 const DESK_POS := Vector3(3.0, 0.0, 11.5)
 
 const WALL_MATERIAL := "Building_Mats/PolygonShops_Mat_Base_Blank_01_mat"
@@ -62,6 +65,7 @@ func build(parent: Node3D) -> Dictionary:
 	_decor()
 	var display := _display_tank()
 	var display2 := _display_tank_2()
+	_goldfish_tank()
 	root.add_child(ShopFront3D.new())
 	_back_room()
 	_signs()
@@ -72,6 +76,7 @@ func build(parent: Node3D) -> Dictionary:
 			"shelf": Vector3(-4.7, 0, SHELF_POS.z),
 			"display": Vector3(DISPLAY_POS.x, 0, -4.0),
 			"display2": Vector3(DISPLAY2_POS.x, 0, -1.6),
+			"goldfish": Vector3(GOLDFISH_POS.x + 1.0, 0, GOLDFISH_POS.z),
 			"counter": Vector3(-0.6, 0, -2.9),
 			"start": Vector3(-0.6, 0.05, -0.4),
 			"back_room": Vector3(0, 0.05, 3.6),
@@ -289,6 +294,14 @@ func _display_tank_2() -> Node3D:
 	tank.setup(Fish.DISPLAY2, Vector3(2.0, 0.8, 0.8), 0.7, "Display tank 2", "display_tank",
 		"Click: Display tank 2", Color.WHITE)
 	return tank
+
+
+## The goldfish tank, its long side along the left wall, facing into the shop.
+func _goldfish_tank() -> void:
+	var tank := GoldfishTank3D.new()
+	tank.position = GOLDFISH_POS
+	tank.rotation.y = PI * 0.5
+	root.add_child(tank)
 
 
 func _back_room() -> void:

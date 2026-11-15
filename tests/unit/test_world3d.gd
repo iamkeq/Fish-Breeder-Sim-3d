@@ -6,6 +6,7 @@ const CustomerPath := preload("res://scenes/world/customer_path.gd")
 const CustomerManager := preload("res://scenes/world/customer_manager.gd")
 const FishArt := preload("res://scenes/world/fish_art.gd")
 const BackRoom3D := preload("res://scenes/world/back_room_3d.gd")
+const GoldfishTank3D := preload("res://scenes/world/goldfish_tank_3d.gd")
 
 const SPECIES := {
 	"days_to_adult": 4,
@@ -33,6 +34,16 @@ func test_fish_collector_and_tank_customers_look_at_the_display_tank() -> void:
 		assert_false(CustomerPath.pays_automatically(kind), kind)
 
 
+func test_goldfish_customers_pick_from_the_goldfish_tank() -> void:
+	assert_eq(_stops("goldfish"), ["goldfish", "counter"])
+	assert_false(CustomerPath.pays_automatically("goldfish"))
+
+
+func test_goldfish_sign_shows_price_and_count() -> void:
+	assert_eq(GoldfishTank3D.sign_text(6, 2), "Goldfish $2 · 6 left")
+	assert_eq(GoldfishTank3D.sign_text(0, 2), "Goldfish $2 · sold out")
+
+
 func test_everyone_else_goes_straight_to_the_counter() -> void:
 	for kind in ["request", "wish_item", "wish_fish", "browse"]:
 		assert_eq(_stops(kind), ["counter"], kind)
@@ -40,7 +51,7 @@ func test_everyone_else_goes_straight_to_the_counter() -> void:
 
 
 func test_every_route_ends_at_the_counter() -> void:
-	for kind in ["item", "fish", "collector", "tank", "request", "wish_item", "wish_fish", "browse", "unknown"]:
+	for kind in ["item", "fish", "collector", "tank", "goldfish", "request", "wish_item", "wish_fish", "browse", "unknown"]:
 		assert_eq(CustomerPath.steps(kind).back()["at"], "counter", kind)
 
 

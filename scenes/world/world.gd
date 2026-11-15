@@ -160,7 +160,7 @@ func open_target(target) -> void:
 			hud.open_tank(target.arg)
 		"counter", "customer":
 			hud.open_counter()
-		"shelf":
+		"shelf", "goldfish":
 			hud.open_market()
 		"desk":
 			hud.open_desk()

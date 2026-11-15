@@ -158,7 +158,7 @@ func _process(delta: float) -> void:
 		_stride = 0.0
 		if _anim != null:
 			# Look things over at the shelf or the tank; otherwise just stand.
-			_play("inspect" if _pause > 0.0 and step["stop"] in ["shelf", "display"] else "idle")
+			_play("inspect" if _pause > 0.0 and step["stop"] in ["shelf", "display", "goldfish"] else "idle")
 		arrived.emit(step["stop"])
 		if _route.is_empty():
 			route_done.emit()

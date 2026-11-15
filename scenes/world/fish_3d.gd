@@ -71,7 +71,7 @@ func set_buff(icon: String) -> void:
 		return
 	if _buff == null:
 		_buff = BuildUtil.label(self, "", Vector3(0, 0.13, 0), 0.0016)
-		_buff.no_depth_test = true
+		_buff.no_depth_test = false  # hidden by walls, so back-room icons don't show through
 	_buff.text = "♥" if icon == "heart" else "▲"
 	_buff.modulate = Color("#ff6f91") if icon == "heart" else Color("#ffd24d")
 

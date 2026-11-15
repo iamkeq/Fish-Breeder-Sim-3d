@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.0] - 2026-11-14
+
+### Added
+- A goldfish tank on the shop floor, against the left wall by the shelf. It holds
+  up to 20 plain goldfish, which sell for $2 each to the odd customer (they're
+  not a popular buy). Restock them from the Market's Fish tab at $1 each (Buy 1,
+  Buy 5 or Fill). Every new game, and every older save, starts with 6.
+- The goldfish breed by themselves: 3 to 4 more every 4 nights while there are at
+  least two, up to what the tank holds. They eat one portion of regular fish food
+  a night (never Growth Flakes or Spawning Pellets); a night without food holds
+  their brood back a night. The Auto-Feeders upgrade feeds them for free.
+- Goldfish never leave their tank: they can't be moved to the display, holding or
+  breeding tanks. Customers who want one look in the goldfish tank first.
+- The day summary shows goldfish sold, new goldfish, and the next goldfish brood.
+
+### Fixed
+- Food-buff icons (hearts and arrows) over back-room fish no longer show
+  through the walls.
+
 ## [0.4.6] - 2026-11-13
 
 ### Fixed
