@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1] - 2026-11-15
+
+### Changed
+- The goldfish in the goldfish tank are drawn with the gold guppy sprite, like
+  the other fish, instead of the plain 3D fish model. (A stand-in until there is
+  goldfish art.)
+
 ## [0.5.0] - 2026-11-14
 
 ### Added

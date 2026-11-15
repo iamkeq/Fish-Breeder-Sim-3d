@@ -1,6 +1,7 @@
 extends Node3D
 ## The goldfish tank on the shop floor: a small tank of plain goldfish, one
-## swimming model per fish (up to MAX_SHOWN), with a price sign. Clicking it
+## swimming fish per goldfish (up to MAX_SHOWN), drawn with the look from
+## economy goldfish_tank.look (a gold guppy sprite for now), with a price sign. Clicking it
 ## opens the Market, where it's restocked. Mirrors Game.state.goldfish.
 
 const Tank3D := preload("res://scenes/world/tank_3d.gd")
@@ -13,8 +14,8 @@ const SIZE := Vector3(1.0, 0.5, 0.5)
 ## More than this many fish would just be a crowd: the rest are "in the back".
 const MAX_SHOWN := 12
 const GOLD := "#f08a2e"
-## A stand-in species with no sprite sheet, so each fish is the Synty fish model.
-const SPECIES := {"id": "goldfish", "name": "Goldfish", "days_to_adult": 1, "sprites": {}}
+## Used if the game data gives the goldfish no look: the plain Synty fish model.
+const PLAIN_SPECIES := {"id": "goldfish", "name": "Goldfish", "days_to_adult": 1, "sprites": {}}
 
 var _swimmers: Array[Node3D] = []
 var _sign: Node3D
@@ -72,13 +73,11 @@ func refresh() -> void:
 	_shown = want
 	while _swimmers.size() > want:
 		_swimmers.pop_back().queue_free()
+	var species := state.goldfish_look_species()
+	if species.is_empty():
+		species = PLAIN_SPECIES
 	while _swimmers.size() < want:
-		var f := Fish.new()
-		f.id = 900000 + _swimmers.size()
-		f.species_id = "goldfish"
-		f.traits = {"variety": "orange"}
-		f.age_days = 1
 		var swimmer := Fish3D.new()
 		add_child(swimmer)
-		swimmer.setup(f, SPECIES, _bounds)
+		swimmer.setup(state.goldfish_look_fish(_swimmers.size()), species, _bounds)
 		_swimmers.append(swimmer)
