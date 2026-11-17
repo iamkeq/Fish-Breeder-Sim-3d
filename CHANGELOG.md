@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.2] - 2026-11-16
+
+### Added
+- A Market button on the Special orders screen. The Market opens on top of it,
+  and closing the Market brings you straight back to your orders.
+
 ## [0.5.1] - 2026-11-15
 
 ### Changed
